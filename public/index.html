@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DocChat AI</title>
+  <meta name="theme-color" content="#fafafa">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+</head>
+<body>
+  <div id="app">
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="screen active">
+      <div class="auth-container">
+        <div class="auth-header">
+          <div class="logo">
+            <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
+              <rect x="4" y="6" width="24" height="20" rx="6" fill="#1a1a1a"/>
+              <line x1="16" y1="6" x2="16" y2="2" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="16" cy="1.5" r="1.5" fill="#333"/>
+              <circle cx="11" cy="15" r="2.5" fill="#e0e0e0"/>
+              <circle cx="21" cy="15" r="2.5" fill="#e0e0e0"/>
+              <circle cx="11.5" cy="15" r="1" fill="#1a1a1a"/>
+              <circle cx="21.5" cy="15" r="1" fill="#1a1a1a"/>
+              <path d="M11 21 Q16 24 21 21" stroke="#e0e0e0" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+              <rect x="1" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+              <rect x="28" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+            </svg>
+          </div>
+          <h1>DocChat AI</h1>
+          <p class="subtitle">Chat with your documents using AI</p>
+        </div>
+
+        <form id="login-form" class="auth-form active">
+          <h2>Sign In</h2>
+          <div class="form-group">
+            <label for="login-username">Username</label>
+            <input type="text" id="login-username" required placeholder="username">
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" required placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Sign In</button>
+        </form>
+
+        <form id="setup-form" class="auth-form">
+          <h2>Initial Setup</h2>
+          <p class="setup-note">Create the admin account for this system.</p>
+          <div class="form-group">
+            <label for="setup-username">Username</label>
+            <input type="text" id="setup-username" required placeholder="admin" minlength="3" maxlength="30">
+          </div>
+          <div class="form-group">
+            <label for="setup-name">Display Name</label>
+            <input type="text" id="setup-name" required placeholder="John Doe">
+          </div>
+          <div class="form-group">
+            <label for="setup-password">Password</label>
+            <input type="password" id="setup-password" required placeholder="Min 8 characters" minlength="8">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Create Admin Account</button>
+        </form>
+
+        <div id="auth-error" class="error-message"></div>
+      </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-app" class="screen">
+      <!-- Top Nav -->
+      <header class="top-header">
+        <div class="top-header-left">
+          <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+            <rect x="4" y="6" width="24" height="20" rx="6" fill="#1a1a1a"/>
+            <line x1="16" y1="6" x2="16" y2="2" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="16" cy="1.5" r="1.5" fill="#333"/>
+            <circle cx="11" cy="15" r="2.5" fill="#e0e0e0"/>
+            <circle cx="21" cy="15" r="2.5" fill="#e0e0e0"/>
+            <circle cx="11.5" cy="15" r="1" fill="#1a1a1a"/>
+            <circle cx="21.5" cy="15" r="1" fill="#1a1a1a"/>
+            <path d="M11 21 Q16 24 21 21" stroke="#e0e0e0" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <rect x="1" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+            <rect x="28" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+          </svg>
+          <span class="app-title">DocChat AI</span>
+        </div>
+        <nav class="top-nav">
+          <button class="tab-btn active" data-view="chat">Chat</button>
+          <button class="tab-btn admin-only" data-view="documents">Documents</button>
+          <button class="tab-btn admin-only" data-view="chat-logs">Chat Logs</button>
+          <button class="tab-btn admin-only" data-view="admin">Admin</button>
+          <button class="tab-btn admin-only" data-view="help">Help</button>
+        </nav>
+        <div class="top-header-right">
+          <span id="username-display" class="username"></span>
+          <button id="logout-btn" class="btn btn-ghost btn-sm">Logout</button>
+          <button id="mobile-menu-btn" class="btn-icon mobile-only" title="Menu">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Chat View -->
+      <div id="chat-view" class="view active">
+        <div class="chat-container">
+          <div class="chat-sidebar">
+            <div class="chat-sidebar-header">
+              <span class="chat-sidebar-title">Conversations</span>
+              <div style="display:flex;gap:4px;">
+                <button id="clear-chats-btn" class="btn btn-ghost btn-sm" title="Clear all chats">Clear</button>
+                <button id="new-chat-btn" class="btn btn-primary btn-sm">+ New</button>
+              </div>
+            </div>
+            <input type="text" id="chat-search" class="chat-sidebar-search" placeholder="Search...">
+            <div id="pinned-chats" class="chat-list"></div>
+            <div id="chat-list" class="chat-list"></div>
+          </div>
+          <div class="chat-main">
+            <div class="chat-main-header">
+              <h2 id="current-chat-title">New Conversation</h2>
+              <div class="chat-main-actions">
+                <button id="pin-chat-btn" class="btn-icon" title="Pin">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 2L14.5 3.5l1 1-4.5 4.5H7l-2 2 4.5 2.5L5 18l1 1 4.5-4.5L13 19l2-2v-4l4.5-4.5 1 1L22 8z"/></svg>
+                </button>
+                <button id="delete-chat-btn" class="btn-icon" title="Delete">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4h8m-7 0V3h6v1M5 4v8a1 1 0 001 1h4a1 1 0 001-1V4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+            <div id="chat-messages" class="chat-messages"></div>
+            <div class="chat-input-area">
+              <div id="typing-indicator" class="typing-indicator hidden">
+                <span></span><span></span><span></span> AI is thinking...
+              </div>
+              <form id="chat-form" class="chat-form">
+                <textarea id="chat-input" placeholder="Type your message..." rows="1"></textarea>
+                <button type="button" id="stop-btn" class="btn-icon hidden" title="Stop">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="8" height="8" fill="currentColor"/></svg>
+                </button>
+                <button type="submit" id="send-btn" class="btn btn-primary btn-send" title="Send">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-6-4 14-3-5-5-3z" fill="currentColor"/></svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Documents View -->
+      <div id="documents-view" class="view">
+        <div class="documents-container">
+          <div class="documents-header">
+            <h2>Documents</h2>
+            <div style="display:flex;gap:8px;">
+              <button id="reprocess-all-btn" class="btn btn-ghost btn-sm">Re-embed All</button>
+              <button id="upload-btn" class="btn btn-primary">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m-3-3l3-3 3 3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Upload Document
+              </button>
+            </div>
+          </div>
+          <div class="documents-search-row">
+            <input type="text" id="doc-search" placeholder="Search documents to filter..." class="documents-search">
+          </div>
+          <div id="documents-list" class="documents-list"></div>
+          <div id="storage-info" class="storage-info"></div>
+        </div>
+      </div>
+
+      <!-- Chat Logs View (Admin only) -->
+      <div id="chat-logs-view" class="view">
+        <div class="chat-logs-container">
+          <div class="chat-logs-header">
+            <h2>Chat Logs</h2>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="chat-logs-search" placeholder="Search messages..." class="documents-search" style="width:200px;">
+              <a id="export-logs-btn" href="/api/admin/chat-logs/export" class="btn btn-primary btn-sm">Export CSV</a>
+              <button id="clear-logs-btn" class="btn btn-ghost btn-sm" style="color:var(--danger)">Clear All Logs</button>
+            </div>
+          </div>
+          <div id="chat-logs-list" class="chat-logs-list"></div>
+        </div>
+      </div>
+
+      <!-- Admin View -->
+      <div id="admin-view" class="view">
+        <div class="admin-container">
+          <h2>Admin Settings</h2>
+
+          <!-- Stats -->
+          <div class="admin-section">
+            <h3>System Statistics</h3>
+            <div id="admin-stats" class="stats-grid"></div>
+          </div>
+
+          <!-- AI Configuration -->
+          <div class="admin-section">
+            <h3>AI Configuration</h3>
+            <div class="config-grid">
+              <div class="form-group">
+                <label>LLM Provider</label>
+                <select id="cfg-llm-provider">
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="claude">Anthropic Claude</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="local">Local (Ollama)</option>
+                </select>
+              </div>
+
+              <div id="cfg-openai-fields" class="provider-fields">
+                <div class="form-group">
+                  <label>OpenAI API Key</label>
+                  <input type="password" id="cfg-openai-key" placeholder="sk-...">
+                </div>
+                <div class="form-group">
+                  <label>Model</label>
+                  <input type="text" id="cfg-openai-model" placeholder="gpt-4o-mini">
+                </div>
+              </div>
+
+              <div id="cfg-gemini-fields" class="provider-fields hidden">
+                <div class="form-group">
+                  <label>Gemini API Key</label>
+                  <input type="password" id="cfg-gemini-key" placeholder="AI...">
+                </div>
+                <div class="form-group">
+                  <label>Model</label>
+                  <input type="text" id="cfg-gemini-model" placeholder="gemini-1.5-flash">
+                </div>
+              </div>
+
+              <div id="cfg-claude-fields" class="provider-fields hidden">
+                <div class="form-group">
+                  <label>Claude API Key</label>
+                  <input type="password" id="cfg-claude-key" placeholder="sk-ant-...">
+                </div>
+                <div class="form-group">
+                  <label>Model</label>
+                  <input type="text" id="cfg-claude-model" placeholder="claude-3-haiku-20240307">
+                </div>
+              </div>
+
+              <div id="cfg-openrouter-fields" class="provider-fields hidden">
+                <div class="form-group">
+                  <label>OpenRouter API Key</label>
+                  <input type="password" id="cfg-openrouter-key" placeholder="sk-or-...">
+                </div>
+                <div class="form-group">
+                  <label>Model</label>
+                  <input type="text" id="cfg-openrouter-model" placeholder="openai/gpt-4o-mini">
+                </div>
+              </div>
+
+              <div id="cfg-local-fields" class="provider-fields hidden">
+                <div class="form-group">
+                  <label>Ollama URL</label>
+                  <input type="text" id="cfg-local-url" placeholder="http://localhost:11434">
+                </div>
+                <div class="form-group">
+                  <label>Model</label>
+                  <input type="text" id="cfg-local-model" placeholder="llama3">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Embedding Model</label>
+                <input type="text" id="cfg-embedding-model" placeholder="text-embedding-3-small">
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Temperature: <span id="cfg-temp-value">0.1</span></label>
+                  <input type="range" id="cfg-temperature" min="0" max="1" step="0.1" value="0.1">
+                </div>
+                <div class="form-group">
+                  <label>Max Chunks</label>
+                  <input type="number" id="cfg-max-chunks" min="1" max="20" value="5">
+                </div>
+                <div class="form-group">
+                  <label>Similarity: <span id="cfg-threshold-value">0.7</span></label>
+                  <input type="range" id="cfg-threshold" min="0.1" max="0.99" step="0.05" value="0.7">
+                </div>
+              </div>
+
+              <div class="form-group inline-toggle">
+                <label>Streaming responses</label>
+                <label class="toggle">
+                  <input type="checkbox" id="cfg-streaming" checked>
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+            <button id="save-config-btn" class="btn btn-primary">Save Configuration</button>
+          </div>
+
+          <!-- System Prompt -->
+          <div class="admin-section">
+            <h3>System Prompt</h3>
+            <p class="section-desc">Controls how the AI responds. Keep it focused on answering only from document context.</p>
+            <textarea id="cfg-system-prompt" class="prompt-textarea" rows="10"></textarea>
+            <button id="save-prompt-btn" class="btn btn-primary">Save Prompt</button>
+          </div>
+
+          <!-- User Management -->
+          <div class="admin-section">
+            <h3>User Management</h3>
+            <div class="user-create-form">
+              <div class="form-row">
+                <div class="form-group"><label>Username</label><input type="text" id="new-user-username" placeholder="username"></div>
+                <div class="form-group"><label>Display Name</label><input type="text" id="new-user-name" placeholder="John Doe"></div>
+                <div class="form-group"><label>Password</label><input type="text" id="new-user-password" placeholder="password"></div>
+                <div class="form-group"><label>Role</label><select id="new-user-role"><option value="user">User</option><option value="admin">Admin</option></select></div>
+                <div class="form-group"><label>&nbsp;</label><button id="create-user-btn" class="btn btn-primary btn-full">Create User</button></div>
+              </div>
+            </div>
+            <div id="users-list" class="users-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help View (Admin only) -->
+      <div id="help-view" class="view">
+        <div class="help-container">
+          <h2>Help & Documentation</h2>
+
+          <div class="help-section">
+            <h3>Overview</h3>
+            <p>DocChat AI is a document-based AI chatbot for internal use. Admins upload knowledge documents (SOPs, processing guidelines, lender updates) and team members ask questions via chat. The AI answers <strong>only</strong> from uploaded document content — never from outside knowledge.</p>
+            <p>There are two roles:</p>
+            <ul>
+              <li><strong>Admin</strong> — Full access: Chat, Documents, Chat Logs, Admin settings, Help. Can manage users, upload/delete documents, configure AI, view all chat history.</li>
+              <li><strong>User</strong> — Chat only. Can ask questions, pin conversations, clear their own chat history. Cannot see documents, settings, or other users' chats.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Initial Setup</h3>
+            <ol>
+              <li>On first launch, the system shows a one-time setup screen to create the admin account (username + display name + password).</li>
+              <li>After the admin account is created, the setup screen is permanently disabled. No one can self-register.</li>
+              <li>Log in → go to <strong>Admin</strong> tab → set your LLM provider and API key (e.g., OpenAI).</li>
+              <li>Go to <strong>Documents</strong> tab → upload your knowledge documents.</li>
+              <li>Wait for documents to show "ready" status (processing takes a few seconds depending on file size).</li>
+              <li>Go to <strong>Chat</strong> tab → ask a question. The AI will answer from your documents with citations.</li>
+              <li>Create user accounts for team members in <strong>Admin</strong> → User Management.</li>
+            </ol>
+          </div>
+
+          <div class="help-section">
+            <h3>How the AI Works (RAG Pipeline)</h3>
+            <p>This system uses <strong>Retrieval-Augmented Generation (RAG)</strong> — the same approach used by Chatbase, CustomGPT, and similar products:</p>
+            <ol>
+              <li><strong>Document Upload:</strong> Text is extracted from the file (PDF, DOCX, TXT, Markdown, or Excel).</li>
+              <li><strong>Chunking:</strong> Text is split into overlapping semantic chunks (~512 tokens each). Paragraph and heading boundaries are preserved. Chunks overlap by ~50 tokens to avoid losing context at boundaries.</li>
+              <li><strong>Embedding:</strong> Each chunk is converted into a 1536-dimension numerical vector using the embedding model (default: OpenAI <code>text-embedding-3-small</code>).</li>
+              <li><strong>Storage:</strong> Vectors are stored in the database alongside metadata (document name, page number, heading).</li>
+              <li><strong>Query:</strong> When a user asks a question, it's also converted into a vector.</li>
+              <li><strong>Vector Search:</strong> The system computes cosine similarity between the query vector and all stored vectors, finding the most relevant chunks.</li>
+              <li><strong>Filtering:</strong> Only chunks above the similarity threshold are kept. The top N chunks (configurable) are selected.</li>
+              <li><strong>LLM Generation:</strong> Selected chunks are sent to the LLM along with the system prompt. The LLM generates an answer grounded in those chunks.</li>
+              <li><strong>Citations:</strong> The response includes document name and page number for every source used.</li>
+            </ol>
+            <p>If no chunks match well enough, the bot says it couldn't find the information and suggests rephrasing or uploading the relevant document.</p>
+          </div>
+
+          <div class="help-section">
+            <h3>Documents Tab</h3>
+            <ul>
+              <li><strong>Upload:</strong> Click "Upload Document" → drag-and-drop or select files. Supports <strong>multiple files at once</strong>.</li>
+              <li><strong>Supported formats:</strong> PDF (text-based), DOCX, TXT, Markdown (.md), Excel (.xlsx, .xls).</li>
+              <li><strong>Status badges:</strong>
+                <ul>
+                  <li>"new" — uploaded in current session</li>
+                  <li>"processing" — being indexed (auto-refreshes every 3 seconds)</li>
+                  <li>"ready" — available for chat queries</li>
+                  <li>"error" — processing failed (error message shown, Retry button available)</li>
+                </ul>
+              </li>
+              <li><strong>Search:</strong> Type in the search box to filter documents by name in real-time.</li>
+              <li><strong>Delete:</strong> Click "Delete" → confirmation dialog → document and all its embeddings are immediately removed from the knowledge base.</li>
+              <li><strong>Re-upload:</strong> If you upload a document with the same filename as an existing one, the old version is automatically replaced (old embeddings deleted, new ones generated).</li>
+              <li><strong>Retry:</strong> If processing failed (e.g., VPN blocking API), click Retry to re-process without re-uploading.</li>
+              <li><strong>No retraining needed:</strong> Adding or removing documents takes effect immediately.</li>
+              <li><strong>File size limit:</strong> 50 MB per file.</li>
+              <li><strong>Excel files:</strong> All sheets are extracted and indexed. Sheet names are preserved in the text.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Chat Tab</h3>
+            <ul>
+              <li><strong>New Conversation:</strong> Click "+ New" in the sidebar (desktop) or hamburger menu (mobile).</li>
+              <li><strong>Ask Questions:</strong> Type your question and press Enter or click Send.</li>
+              <li><strong>Streaming:</strong> Answers appear word-by-word as generated (if enabled in Admin settings).</li>
+              <li><strong>Citations:</strong> Every answer shows which documents and pages it came from.</li>
+              <li><strong>Pin Conversations:</strong> Click the pin icon to keep important chats at the top. Click again to unpin.</li>
+              <li><strong>Delete Conversation:</strong> Click the trash icon to remove a conversation.</li>
+              <li><strong>Clear All:</strong> Click "Clear" to remove all conversations at once.</li>
+              <li><strong>Auto-limit:</strong> Maximum 20 conversations are kept. Oldest unpinned conversations are automatically removed when the limit is exceeded.</li>
+              <li><strong>Regenerate:</strong> Hover over an AI response → click "Regenerate" to get a fresh answer.</li>
+              <li><strong>Copy:</strong> Hover over a response → click "Copy" to copy the text to clipboard.</li>
+              <li><strong>Mobile:</strong> Use the hamburger menu (≡) on the top-right to access conversations, navigation, and account options.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Chat Logs Tab (Admin only)</h3>
+            <ul>
+              <li><strong>Purpose:</strong> View every chat message from every user — even after users clear their own conversations.</li>
+              <li><strong>Persistence:</strong> Chat logs are permanent. Clearing conversations from the Chat tab only removes them from the user's view, not from the logs.</li>
+              <li><strong>Search:</strong> Filter logs by message content.</li>
+              <li><strong>Expand:</strong> Click a conversation to see all messages in that thread.</li>
+              <li><strong>Export CSV:</strong> Download all chat logs as a CSV file for analysis (FAQ identification, training needs, usage patterns).</li>
+              <li><strong>Clear All Logs:</strong> Permanently delete all chat history (with confirmation).</li>
+              <li><strong>Use cases:</strong> Identify frequently asked questions, spot knowledge gaps, assess team training needs, audit AI accuracy.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Admin Tab — AI Configuration</h3>
+            <ul>
+              <li><strong>LLM Provider:</strong> OpenAI, Google Gemini, Anthropic Claude, OpenRouter, or local Ollama.</li>
+              <li><strong>API Key:</strong> Stored securely on the server. Masked in the UI (only last 4 characters shown).</li>
+              <li><strong>Model:</strong> e.g., <code>gpt-4o-mini</code>, <code>gpt-4o</code>, <code>claude-3-haiku-20240307</code>, <code>gemini-1.5-flash</code>.</li>
+              <li><strong>Embedding Model:</strong> Default: <code>text-embedding-3-small</code>. Changing this after documents are uploaded requires deleting and re-uploading all documents.</li>
+              <li><strong>Temperature (0.0–1.0):</strong> Lower = more focused/deterministic. Recommended: 0.1 for factual Q&A.</li>
+              <li><strong>Max Chunks (1–20):</strong> How many document segments to include as context per query. More = broader context but higher cost. Recommended: 5–8.</li>
+              <li><strong>Similarity Threshold (0.1–0.5):</strong> Minimum relevance score for a chunk to be included. Higher = stricter. Recommended: 0.3.</li>
+              <li><strong>Streaming:</strong> Toggle real-time word-by-word response display.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Admin Tab — System Prompt</h3>
+            <p>The system prompt controls how the AI behaves. It is sent before every conversation. Key aspects it controls:</p>
+            <ul>
+              <li>Grounding — forcing the AI to answer only from provided document context</li>
+              <li>Citation format — requiring document name and page numbers</li>
+              <li>Conflict resolution — preferring the latest document/update when information conflicts</li>
+              <li>Conversational behavior — how it handles greetings and off-topic questions</li>
+              <li>Restrictions — what the AI should refuse to do (e.g., drafting emails)</li>
+            </ul>
+            <p><strong>Caution:</strong> Modifying the system prompt significantly affects answer quality. Always keep the "answer only from context" rules intact.</p>
+          </div>
+
+          <div class="help-section">
+            <h3>Admin Tab — User Management</h3>
+            <ul>
+              <li><strong>Create User:</strong> Provide username, display name, password, and role. There is no self-registration — admins create all accounts.</li>
+              <li><strong>Login:</strong> Users log in with username + password.</li>
+              <li><strong>Roles:</strong> "Admin" sees all tabs. "User" sees only the Chat tab.</li>
+              <li><strong>Change Role:</strong> Click "Make Admin" or "Make User" to promote/demote.</li>
+              <li><strong>Remove User:</strong> Permanently deletes the account. You cannot delete your own account.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Best Practices for Document Uploads</h3>
+            <ul>
+              <li><strong>Be specific with filenames:</strong> e.g., "Lender_ABC_Processing_Guidelines_2026.pdf" — the filename appears in citations.</li>
+              <li><strong>Use text-based PDFs:</strong> Scanned image PDFs won't extract text. Convert to searchable PDF first.</li>
+              <li><strong>Keep documents focused:</strong> A 10-page SOP per lender works better than a 500-page omnibus document.</li>
+              <li><strong>Upload updates separately:</strong> When a processing update arrives, upload it as a new document. The AI prioritizes the most recent content when conflicts exist.</li>
+              <li><strong>Delete obsolete documents:</strong> If a guideline is fully superseded, delete the old version to avoid contradictory answers.</li>
+              <li><strong>Test after uploading:</strong> Ask a question you know the answer to and verify correctness.</li>
+              <li><strong>Multiple files at once:</strong> Drag-and-drop multiple files into the upload area to batch upload.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Conflict Resolution</h3>
+            <p>The system prompt instructs the AI to handle conflicting information as follows:</p>
+            <ul>
+              <li>If multiple documents conflict → the <strong>most recently uploaded</strong> document takes priority.</li>
+              <li>If a single document contains chronological updates that conflict → the <strong>latest dated entry</strong> takes priority.</li>
+              <li>The AI will explicitly mention the conflict in its response — stating which documents disagree, on which pages, and which version it's using.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Troubleshooting</h3>
+            <table class="help-table">
+              <tr><td>"I couldn't find that information"</td><td>The relevant document may not be uploaded, or the question doesn't match how the document phrases it. Try rephrasing. Check if the document shows "ready" status.</td></tr>
+              <tr><td>Wrong/outdated answer</td><td>An old version of the document may still be uploaded. Delete the old version.</td></tr>
+              <tr><td>Document stuck on "processing"</td><td>The embedding API call likely failed (VPN blocking external networks, wrong API key, rate limit). Check the error message, fix the issue, then click Retry.</td></tr>
+              <tr><td>Document shows "error" + "fetch failed"</td><td>Network connectivity issue. Disconnect VPN if it blocks external API calls, then click Retry.</td></tr>
+              <tr><td>Slow responses</td><td>Enable streaming in Admin settings. Use a smaller/faster model (GPT-4o-mini vs GPT-4o).</td></tr>
+              <tr><td>Bot mixes up lenders</td><td>Reduce "Max Chunks" in Admin settings, or increase the similarity threshold to get more focused results.</td></tr>
+              <tr><td>Garbled/incomplete responses</td><td>This was a streaming parser issue — should be resolved. If it recurs, try disabling streaming temporarily.</td></tr>
+              <tr><td>Can't log in</td><td>Username is case-insensitive. If you forgot your password, another admin can delete and recreate your account.</td></tr>
+            </table>
+          </div>
+
+          <div class="help-section">
+            <h3>Data & Storage</h3>
+            <ul>
+              <li><strong>Database:</strong> <code>data/chatbot.db</code> (SQLite). Back up this file to preserve everything.</li>
+              <li><strong>Uploaded files:</strong> Stored in the <code>uploads/</code> directory.</li>
+              <li><strong>Sessions:</strong> Stored in memory — users must re-login after server restart.</li>
+              <li><strong>API keys:</strong> Stored in the database, never sent to the client browser (UI shows masked values).</li>
+              <li><strong>Chat logs:</strong> Permanent until explicitly cleared by an admin via the Chat Logs tab.</li>
+              <li><strong>Backups:</strong> To back up the entire system, copy <code>data/chatbot.db</code> and the <code>uploads/</code> folder.</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>Mobile Access</h3>
+            <ul>
+              <li>The app is fully responsive and works on phones and tablets.</li>
+              <li>On mobile, the top navigation tabs move into a <strong>hamburger menu</strong> (≡) on the top-right.</li>
+              <li>The conversation sidebar also moves into the hamburger menu.</li>
+              <li>All features (chat, upload, admin settings) are accessible on mobile.</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div id="mobile-drawer" class="mobile-drawer">
+      <div class="mobile-drawer-overlay"></div>
+      <div class="mobile-drawer-panel">
+        <div class="mobile-drawer-header">
+          <span class="mobile-drawer-title">Menu</span>
+          <button id="mobile-drawer-close" class="btn-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <nav class="mobile-nav">
+          <button class="mobile-nav-btn active" data-mview="chat">Chat</button>
+          <button class="mobile-nav-btn admin-only" data-mview="documents">Documents</button>
+          <button class="mobile-nav-btn admin-only" data-mview="chat-logs">Chat Logs</button>
+          <button class="mobile-nav-btn admin-only" data-mview="admin">Admin</button>
+          <button class="mobile-nav-btn admin-only" data-mview="help">Help</button>
+        </nav>
+        <div class="mobile-chats-section">
+          <div class="mobile-chats-header">
+            <span>Conversations</span>
+            <div style="display:flex;gap:4px;">
+              <button id="mobile-clear-chats" class="btn btn-ghost btn-sm">Clear</button>
+              <button id="mobile-new-chat" class="btn btn-primary btn-sm">+ New</button>
+            </div>
+          </div>
+          <div id="mobile-chat-list" class="mobile-chat-list"></div>
+        </div>
+        <div class="mobile-drawer-footer">
+          <span id="mobile-username" class="username"></span>
+          <button id="mobile-logout" class="btn btn-ghost btn-sm">Logout</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="upload-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Upload Document</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <form id="upload-form">
+          <div class="upload-dropzone" id="dropzone">
+            <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
+              <path d="M24 8v20m-8-8l8-8 8 8M8 36h32" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <p>Drag and drop files or click to select</p>
+            <span class="file-types">PDF, DOCX, TXT, Markdown, Excel (.xlsx)</span>
+            <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.xlsx,.xls" multiple hidden>
+          </div>
+          <div id="upload-file-info" class="upload-file-info hidden"></div>
+          <div id="upload-progress" class="progress-bar hidden">
+            <div class="progress-fill"></div>
+          </div>
+          <button type="submit" id="upload-submit" class="btn btn-primary btn-full" disabled>Upload</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
