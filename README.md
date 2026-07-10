@@ -1,71 +1,45 @@
-# DocuChat AI v2.0.0
+# DocuChat AI
 
-Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, ask questions, get answers grounded only in your documents with page-accurate citations.
+Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
 
 ## Features
 
-### Authentication & Users
-- Username + password authentication (no email required)
-- First user automatically becomes admin — no self-registration
-- Admin creates all user accounts (username, display name, password, role)
-- Role-based access: **Admin** (all tabs) / **User** (chat only)
-- Secure session management with proxy support for reverse-proxy deployments
-
-### Documents
-- Upload: PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls)
-- Multi-file drag-and-drop upload
-- Re-upload same filename automatically replaces old version (no duplicates)
-- Page-accurate extraction: PDF pages tracked individually, DOCX sections by heading, Excel by sheet
-- Auto-polling status (processing → ready) with real-time updates
-- Retry failed documents without re-uploading
-- **Re-embed All** button: regenerate embeddings when switching embedding models — no re-upload needed
-- Semantic chunking with configurable chunk size and overlap
-
-### Chat
-- RAG pipeline: vector search → relevant chunks → LLM generates grounded answer
-- Streaming responses (word-by-word)
-- Citations with document name, page number, and section heading
-- Conflict resolution: latest document/latest update wins, conflicts explicitly mentioned
-- Conversation management: pin, delete, clear all
-- 20-chat auto-limit (oldest unpinned auto-pruned)
-- Copy and Regenerate on any AI response
-
-### AI Configuration (Admin UI)
-- Configurable LLM: OpenAI, Google Gemini, Anthropic Claude, OpenRouter, Local (Ollama)
-- Configurable embedding model (text-embedding-3-small, text-embedding-3-large, etc.)
-- API keys managed in UI (not env vars) — masked display, stored securely
-- Editable system prompt controlling AI behavior, citation format, conflict rules
-- Temperature, max chunks, similarity threshold — all adjustable at runtime
-
-### Chat Logs (Admin)
-- Permanent log of every message from every user
-- Persists even after users clear their conversations
-- Search across all messages
-- Expand conversations to view full threads
-- Export as CSV for FAQ analysis and training needs identification
-- Admin can clear logs when needed
-
-### Mobile
-- Fully responsive design
-- Hamburger menu (slides from right) with navigation + conversation list
-- iOS Safari compatible (dynamic viewport, touch scrolling, no zoom on input)
-- Works on phones and tablets
-
-### Design
-- Light theme, monochrome design language (matching dictation app style)
-- Inter font, compact typography
-- Clean, minimal UI with no unnecessary elements
+- **Username/password authentication** (no email required)
+- **First user auto-becomes admin** — no self-registration
+- **Admin creates users** with username, display name, password, and role
+- **Role-based access**: Admin (all tabs), User (chat only)
+- **Document upload**: PDF, DOCX, TXT, Markdown, Excel (.xlsx)
+- **Web URL sources**: Paste a URL → content is scraped and indexed
+- **Multi-file drag-and-drop upload** with progress indicator
+- **Batch select & delete** documents with checkboxes
+- **Re-upload same filename** replaces old version automatically
+- **Re-embed All** button: regenerate embeddings without re-uploading after changing embedding model
+- **Document processing**: text extraction (page-by-page for PDFs), semantic chunking, embeddings
+- **Accurate page citations**: PDF pages, DOCX sections, Excel sheet names
+- **Auto-polling document status** (processing → ready)
+- **Retry failed documents** without re-uploading
+- **RAG chat**: vector search + LLM with streaming responses
+- **Inline citations** with document name, page number, and dates for chronological updates
+- **Conflict resolution**: latest document/update wins, conflicts are reported
+- **Configurable LLM**: OpenAI, Gemini, Claude, OpenRouter, Local (Ollama)
+- **Configurable embedding model**: switch models and re-embed from UI
+- **Configurable system prompt** from Admin UI
+- **API keys configured in UI** (not env vars)
+- **Conversation management**: pin, delete, clear all, 20-chat auto-limit
+- **Chat Logs tab**: admin sees all chats ever, export as CSV
+- **Help tab**: complete documentation for admins
+- **Mobile-friendly** with hamburger menu drawer
+- **Light theme**, monochrome design
+- **Reverse proxy ready** with `trust proxy` support for HTTPS deployments
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | Node.js, Express |
-| Database | sql.js (SQLite, pure JS, no native compilation) |
-| Frontend | Vanilla HTML/CSS/JS (no framework, no build step) |
-| Embeddings | OpenAI text-embedding-3-small/large (configurable) |
-| LLM | OpenAI, Gemini, Claude, OpenRouter, Ollama (configurable) |
-| Vector Search | In-memory cosine similarity |
+- **Backend**: Node.js, Express
+- **Database**: sql.js (SQLite via WebAssembly — no native compilation needed)
+- **Frontend**: Vanilla JS single-page app (no framework, no build step)
+- **Embeddings**: OpenAI `text-embedding-3-small` or `text-embedding-3-large` (configurable)
+- **LLM**: Configurable — OpenAI, Gemini, Claude, OpenRouter, or local Ollama
+- **Web scraping**: Cheerio for URL source extraction
 
 ## Quick Start
 
@@ -75,60 +49,50 @@ npm install
 npm start
 ```
 
-Open `http://localhost:3000`. First visit shows a one-time admin setup screen.
+Open `http://localhost:3000`. First visit shows a one-time setup screen to create the admin account.
 
-1. Create admin account (username + password)
-2. Admin tab → set LLM provider + API key
-3. Documents tab → upload knowledge documents
-4. Wait for "ready" status
-5. Chat tab → ask questions
+1. Log in → **Admin** tab → set LLM provider and API key
+2. **Documents** tab → upload knowledge documents or add URLs
+3. Wait for "ready" status
+4. **Chat** tab → ask questions
 
 ## Environment Variables
 
-Only two needed in `.env`:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | Server port |
+| `SESSION_SECRET` | `fallback-dev-secret` | Session signing secret (change in production) |
 
-| Variable | Default | Required |
-|----------|---------|----------|
-| `PORT` | `3000` | No |
-| `SESSION_SECRET` | `fallback-dev-secret` | Yes (change in production) |
-
-Generate a secure secret:
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-All other configuration (API keys, models, prompt, thresholds) is managed through the Admin UI at runtime.
+All other configuration (API keys, models, temperature, prompt) is managed through the Admin UI.
 
 ## Project Structure
 
 ```
 document-chatbot/
-├── public/                      # Frontend SPA
-│   ├── index.html              # Single-page app
-│   ├── app.js                  # All frontend logic
-│   ├── styles.css              # Light monochrome theme
-│   └── favicon.svg             # Bot face icon
+├── public/                  # Frontend
+│   ├── index.html
+│   ├── app.js
+│   ├── styles.css
+│   └── favicon.svg
 ├── src/
-│   ├── index.js                # Express server + middleware
-│   ├── config/index.js         # Environment config
-│   ├── controllers/            # Route handlers (auth, chat, documents, admin)
-│   ├── database/               # sql.js connection, query helper, migrations
-│   ├── middleware/             # Auth, validation, upload, error handling
-│   ├── models/                 # Data access (User, Document, Chunk, Embedding, ChatLog, etc.)
-│   ├── routes/                 # Express route definitions
-│   ├── services/               # Business logic
-│   │   ├── extractors/         # PDF, DOCX, TXT, MD, Excel text extraction
-│   │   ├── chunker.js          # Semantic chunking with page/section tracking
-│   │   ├── embeddingService.js # OpenAI/local embedding generation
-│   │   ├── vectorSearch.js     # Cosine similarity search
-│   │   ├── llmService.js       # Multi-provider LLM (OpenAI, Gemini, Claude, etc.)
-│   │   ├── ragService.js       # RAG orchestration + streaming
-│   │   └── documentProcessor.js # Upload pipeline orchestration
-│   └── utils/                  # Logger, error classes
-├── data/chatbot.db             # SQLite database (all data)
-├── uploads/                    # Original uploaded files
-├── DEPLOYMENT.md               # VPS deployment guide
-├── .env.example                # Environment template
+│   ├── index.js             # Express server
+│   ├── config/index.js
+│   ├── controllers/         # Route handlers
+│   ├── database/            # sql.js connection, migrations, query layer
+│   ├── middleware/           # Auth, validation, upload, error handling
+│   ├── models/              # Data access (User, Document, Chunk, Embedding, ChatLog, etc.)
+│   ├── routes/              # Express route definitions
+│   ├── services/            # Business logic
+│   │   ├── extractors/      # PDF, DOCX, TXT, MD, Excel extractors
+│   │   ├── webScraper.js    # URL content extraction
+│   │   ├── chunker.js       # Semantic text chunking with page tracking
+│   │   ├── embeddingService.js
+│   │   ├── vectorSearch.js  # Cosine similarity search
+│   │   ├── llmService.js    # Multi-provider LLM client
+│   │   └── ragService.js    # RAG pipeline orchestration
+│   └── utils/
+├── data/                    # SQLite database (auto-created)
+├── uploads/                 # Uploaded files (auto-created)
 └── package.json
 ```
 
@@ -136,14 +100,15 @@ document-chatbot/
 
 ### Auth
 - `GET /api/auth/needs-setup` — Check if first-time setup needed
-- `POST /api/auth/setup` — Create initial admin (one-time)
-- `POST /api/auth/login` — Login (username + password)
-- `POST /api/auth/logout` — Logout
-- `GET /api/auth/profile` — Current user profile
+- `POST /api/auth/setup` — Create initial admin
+- `POST /api/auth/login` — Log in (username + password)
+- `POST /api/auth/logout` — Log out
+- `GET /api/auth/profile` — Current user
 
 ### Documents
-- `GET /api/documents` — List all documents
+- `GET /api/documents` — List all
 - `POST /api/documents/upload` — Upload file (multipart)
+- `POST /api/documents/import-url` — Add URL source
 - `POST /api/documents/reprocess-all` — Re-embed all documents
 - `POST /api/documents/:id/reindex` — Retry single document
 - `DELETE /api/documents/:id` — Delete document
@@ -151,52 +116,59 @@ document-chatbot/
 ### Chat
 - `GET /api/chat/conversations` — List conversations
 - `POST /api/chat/conversations` — Create conversation
-- `PATCH /api/chat/conversations/:id` — Update (rename, pin/unpin)
-- `DELETE /api/chat/conversations/:id` — Delete conversation
+- `PATCH /api/chat/conversations/:id` — Update (rename, pin)
+- `DELETE /api/chat/conversations/:id` — Delete
 - `GET /api/chat/conversations/:id/messages` — Get messages
-- `POST /api/chat/conversations/:id/messages?stream=true` — Send message (SSE streaming)
+- `POST /api/chat/conversations/:id/messages?stream=true` — Send message
 - `POST /api/chat/conversations/:id/regenerate` — Regenerate last response
 
 ### Admin
 - `GET /api/admin/stats` — System statistics
-- `GET /api/admin/config` — Get configuration
-- `PATCH /api/admin/config` — Update configuration
-- `GET /api/admin/config/prompt` — Get system prompt
-- `PUT /api/admin/config/prompt` — Update system prompt
 - `GET /api/admin/users` — List users
 - `POST /api/admin/users` — Create user
 - `PATCH /api/admin/users/:id/role` — Change role
 - `DELETE /api/admin/users/:id` — Delete user
+- `GET /api/admin/config` — Get configuration
+- `PATCH /api/admin/config` — Update configuration
+- `GET /api/admin/config/prompt` — Get system prompt
+- `PUT /api/admin/config/prompt` — Update system prompt
 - `GET /api/admin/chat-logs/conversations` — Chat log summaries
-- `GET /api/admin/chat-logs/conversations/:id` — Full conversation log
-- `GET /api/admin/chat-logs/export` — Download CSV
+- `GET /api/admin/chat-logs/conversations/:id` — Conversation detail
+- `GET /api/admin/chat-logs/export` — Export CSV
 - `DELETE /api/admin/chat-logs` — Clear all logs
 
 ## How It Works
 
-1. **Upload** → Text extracted page-by-page (PDF), by section (DOCX), by sheet (Excel)
-2. **Chunk** → Split into ~800-token overlapping segments preserving structure
-3. **Embed** → Each chunk converted to 1536/3072-dimension vector via embedding API
-4. **Store** → Vectors saved with metadata (page number, section heading, document name)
-5. **Query** → User question embedded → cosine similarity finds top matching chunks
-6. **Generate** → Top chunks sent to LLM with system prompt → grounded answer with citations
+1. **Upload** — Text extracted from files (page-by-page for PDFs) or scraped from URLs
+2. **Chunk** — Split into overlapping semantic chunks (~800 tokens) with page/section tracking
+3. **Embed** — Each chunk converted to a vector (1536 or 3072 dimensions)
+4. **Store** — Vectors saved with metadata (document, page, heading)
+5. **Query** — User question converted to vector → cosine similarity search
+6. **Generate** — Top matching chunks sent to LLM with system prompt → grounded answer with citations
 
 ## Deployment
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete VPS deployment instructions including:
-- File transfer
-- PM2 / systemd setup
-- Nginx reverse proxy with SSL
-- Backup strategy
-- Troubleshooting
+See the Help tab in the app for complete documentation, or copy the project to your VPS:
 
-Key note: When running behind a reverse proxy (Nginx), `trust proxy` is enabled for proper session handling over HTTPS.
+```bash
+# Copy project (exclude node_modules)
+scp -r document-chatbot/ user@vps:/home/user/
+
+# On VPS
+cd document-chatbot
+npm install
+npm install -g pm2
+pm2 start src/index.js --name docuchat
+pm2 save && pm2 startup
+```
+
+For HTTPS, put Nginx in front with SSL termination. The app includes `trust proxy` support for reverse proxy deployments.
 
 ## Backup
 
-Copy these two items to preserve everything:
-- `data/chatbot.db` — all data (users, embeddings, config, chat history, API keys)
-- `uploads/` — original uploaded files (needed for re-embedding)
+Copy these two items to back up everything:
+- `data/chatbot.db` — all data
+- `uploads/` — original files
 
 ## License
 

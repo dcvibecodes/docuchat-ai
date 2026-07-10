@@ -156,16 +156,19 @@
         <div class="documents-container">
           <div class="documents-header">
             <h2>Documents</h2>
-            <div style="display:flex;gap:8px;">
-              <button id="reprocess-all-btn" class="btn btn-ghost btn-sm">Re-embed All</button>
-              <button id="upload-btn" class="btn btn-primary">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m-3-3l3-3 3 3M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                Upload Document
-              </button>
+            <div class="documents-actions">
+              <button id="reprocess-all-btn" class="btn btn-ghost">Re-embed All</button>
+              <button id="upload-btn" class="btn btn-primary">Upload</button>
             </div>
           </div>
-          <div class="documents-search-row">
-            <input type="text" id="doc-search" placeholder="Search documents to filter..." class="documents-search">
+          <div class="documents-toolbar">
+            <input type="text" id="doc-search" placeholder="Search documents..." class="documents-search">
+            <input type="text" id="url-input" placeholder="https://example.com/page" class="documents-search">
+            <button id="add-url-btn" class="btn btn-ghost">Add URL</button>
+          </div>
+          <div class="documents-list-header">
+            <label class="doc-select-all"><input type="checkbox" id="doc-select-all"> Select all</label>
+            <button id="batch-delete-btn" class="btn btn-ghost hidden" style="color:var(--danger);border-color:var(--danger);">Delete Selected</button>
           </div>
           <div id="documents-list" class="documents-list"></div>
           <div id="storage-info" class="storage-info"></div>
@@ -372,8 +375,9 @@
           <div class="help-section">
             <h3>Documents Tab</h3>
             <ul>
-              <li><strong>Upload:</strong> Click "Upload Document" → drag-and-drop or select files. Supports <strong>multiple files at once</strong>.</li>
-              <li><strong>Supported formats:</strong> PDF (text-based), DOCX, TXT, Markdown (.md), Excel (.xlsx, .xls).</li>
+              <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select files. Supports <strong>multiple files at once</strong>. Progress indicator shows which file is being uploaded (e.g., "Uploading 3 of 7: filename.pdf").</li>
+              <li><strong>Add URL:</strong> Paste a public website URL and click "Add URL". The system scrapes the page content and adds it to the knowledge base like any other document.</li>
+              <li><strong>Supported formats:</strong> PDF (text-based), DOCX, TXT, Markdown (.md), Excel (.xlsx, .xls), Web URLs.</li>
               <li><strong>Status badges:</strong>
                 <ul>
                   <li>"new" — uploaded in current session</li>
@@ -383,12 +387,15 @@
                 </ul>
               </li>
               <li><strong>Search:</strong> Type in the search box to filter documents by name in real-time.</li>
-              <li><strong>Delete:</strong> Click "Delete" → confirmation dialog → document and all its embeddings are immediately removed from the knowledge base.</li>
-              <li><strong>Re-upload:</strong> If you upload a document with the same filename as an existing one, the old version is automatically replaced (old embeddings deleted, new ones generated).</li>
+              <li><strong>Select &amp; Batch Delete:</strong> Use checkboxes to select multiple documents. "Select all" selects everything. Click "Delete Selected" to remove them all at once (with confirmation).</li>
+              <li><strong>Single Delete:</strong> Click "Delete" next to any document (with confirmation).</li>
+              <li><strong>Re-upload:</strong> If you upload a document with the same filename as an existing one, the old version is automatically replaced.</li>
+              <li><strong>Re-embed All:</strong> After changing the embedding model in Admin settings, click "Re-embed All" to regenerate embeddings for all documents without re-uploading. Button shows "Re-embedding..." while processing.</li>
               <li><strong>Retry:</strong> If processing failed (e.g., VPN blocking API), click Retry to re-process without re-uploading.</li>
               <li><strong>No retraining needed:</strong> Adding or removing documents takes effect immediately.</li>
               <li><strong>File size limit:</strong> 50 MB per file.</li>
-              <li><strong>Excel files:</strong> All sheets are extracted and indexed. Sheet names are preserved in the text.</li>
+              <li><strong>Excel files:</strong> All sheets are extracted and indexed. Sheet names are preserved in citations.</li>
+              <li><strong>Web URLs:</strong> Content is scraped, cleaned (navigation/ads removed), and indexed. The URL appears as the document name in citations. Re-adding the same URL replaces the old version.</li>
             </ul>
           </div>
 
@@ -575,8 +582,9 @@
             <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.xlsx,.xls" multiple hidden>
           </div>
           <div id="upload-file-info" class="upload-file-info hidden"></div>
-          <div id="upload-progress" class="progress-bar hidden">
-            <div class="progress-fill"></div>
+          <div id="upload-progress" class="upload-progress-area hidden">
+            <div class="progress-bar"><div class="progress-fill" id="upload-progress-fill"></div></div>
+            <span id="upload-progress-text" class="upload-progress-text"></span>
           </div>
           <button type="submit" id="upload-submit" class="btn btn-primary btn-full" disabled>Upload</button>
         </form>

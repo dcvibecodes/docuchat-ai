@@ -1,6 +1,6 @@
 {
   "name": "document-chatbot",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "DocuChat AI - Chat with your uploaded documents using RAG",
   "main": "src/index.js",
   "scripts": {
@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.4.3",
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

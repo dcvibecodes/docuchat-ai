@@ -15,6 +15,8 @@ async function extractText(filePath, fileType) {
     case 'xlsx':
     case 'xls':
       return extractExcel(filePath);
+    case 'url':
+      return extractTxt(filePath); // URL content is saved as plain text
     default:
       throw new Error(`Unsupported file type: ${fileType}`);
   }

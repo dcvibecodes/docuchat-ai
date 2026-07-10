@@ -8,6 +8,7 @@ router.use(requireAuth);
 
 router.get('/', DocumentController.list);
 router.post('/upload', upload.single('file'), DocumentController.upload);
+router.post('/import-url', DocumentController.importUrl);
 router.post('/reprocess-all', DocumentController.reprocessAll);
 router.get('/:id', DocumentController.get);
 router.patch('/:id/rename', DocumentController.rename);

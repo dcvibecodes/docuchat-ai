@@ -162,6 +162,62 @@ class DocumentController {
     }
   }
 
+  static async importUrl(req, res, next) {
+    try {
+      const { url } = req.body;
+      if (!url || !url.trim()) {
+        throw new ValidationError('URL is required');
+      }
+
+      // Validate URL format
+      try { new URL(url); } catch { throw new ValidationError('Invalid URL format'); }
+
+      const kb = KnowledgeBase.getDefaultForUser(req.session.userId);
+      if (!kb) throw new Error('No knowledge base found');
+
+      // Check if this URL was already added
+      const existing = Document.findByOriginalName(url);
+      if (existing) {
+        Embedding.deleteByDocument(existing.id);
+        Chunk.deleteByDocument(existing.id);
+        Document.delete(existing.id);
+      }
+
+      // Scrape the URL
+      const { scrapeUrl } = require('../services/webScraper');
+      const { title, text } = await scrapeUrl(url);
+
+      // Save the text content as a virtual file
+      const fs = require('fs');
+      const path = require('path');
+      const { v4: uuidv4 } = require('uuid');
+      const filename = uuidv4() + '.txt';
+      const userDir = path.resolve('uploads', req.session.userId);
+      if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+      fs.writeFileSync(path.join(userDir, filename), text, 'utf-8');
+
+      // Create document record (use URL as original_name for identification)
+      const doc = Document.create({
+        userId: req.session.userId,
+        knowledgeBaseId: kb.id,
+        filename: filename,
+        originalName: url,
+        fileType: 'url',
+        fileSize: Buffer.byteLength(text, 'utf-8')
+      });
+
+      KnowledgeBase.incrementDocCount(kb.id);
+
+      // Process (chunk + embed)
+      const { processDocument } = require('../services/documentProcessor');
+      processDocument(doc.id).catch(err => {
+        Document.updateStatus(doc.id, 'error', err.message);
+      });
+
+      res.status(201).json(doc);
+    } catch (err) { next(err); }
+  }
+
   static async reprocessAll(req, res, next) {
     try {
       const documents = Document.findAll({});

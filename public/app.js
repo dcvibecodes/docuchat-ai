@@ -220,25 +220,71 @@
       const badge = isNew?'<span class="doc-badge new">new</span>':doc.status==='processing'?'<span class="doc-badge processing">processing</span>':doc.status==='error'?'<span class="doc-badge error">error</span>':'<span class="doc-badge ready">ready</span>';
       const err = doc.status==='error'&&doc.error_message?'<div class="doc-error">'+esc(doc.error_message)+'</div>':'';
       const retryBtn = doc.status==='error'?'<button class="doc-delete-btn" data-action="retry" data-did="'+doc.id+'" style="color:var(--primary);border-color:var(--primary)">Retry</button>':'';
-      return '<div class="doc-row"><div class="doc-icon '+doc.file_type+'">'+doc.file_type+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+'<button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
+      return '<div class="doc-row"><input type="checkbox" class="doc-checkbox" data-did="'+doc.id+'"><div class="doc-icon '+doc.file_type+'">'+doc.file_type+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+'<button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
     }).join('');
     const total = state.documents.reduce((s,d)=>s+d.file_size,0);
     $('storage-info').textContent = state.documents.length+' documents · '+fmtBytes(total);
+    updateBatchBtn();
+  }
+
+  function updateBatchBtn() {
+    const checked = document.querySelectorAll('.doc-checkbox:checked');
+    const btn = $('batch-delete-btn');
+    if (checked.length > 0) { btn.classList.remove('hidden'); btn.textContent = 'Delete Selected ('+checked.length+')'; }
+    else { btn.classList.add('hidden'); }
+  }
+
+  async function batchDelete() {
+    const checked = document.querySelectorAll('.doc-checkbox:checked');
+    if (!checked.length) return;
+    if (!confirm('Delete '+checked.length+' document'+(checked.length>1?'s':'')+'? This cannot be undone.')) return;
+    const ids = Array.from(checked).map(cb => cb.dataset.did);
+    let success = 0;
+    for (const id of ids) { try { await api.del('/documents/'+id); success++; } catch(e){} }
+    toast(success+' document'+(success>1?'s':'')+' deleted', 'success');
+    await loadDocuments();
+    $('doc-select-all').checked = false;
   }
   async function deleteDoc(id) { if (!confirm('Are you sure you want to delete this document? This will permanently remove it from the knowledge base.')) return; try { await api.del('/documents/'+id); toast('Deleted','success'); state.documents=state.documents.filter(d=>d.id!==id); renderDocs(); } catch(err){toast(err.message,'error');} }
   async function retryDoc(id) { try { await api.post('/documents/'+id+'/reindex'); toast('Retrying...','info'); await loadDocuments(); } catch(err){toast(err.message,'error');} }
 
   async function reprocessAll() {
     if (!confirm('Re-embed all documents with the current embedding model? This may take a while and uses API credits.')) return;
+    const btn = $('reprocess-all-btn');
+    btn.disabled = true; btn.textContent = 'Re-embedding...';
     try { const r = await api.post('/documents/reprocess-all'); toast(r.message, 'success'); await loadDocuments(); }
     catch(err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Re-embed All'; }
+  }
+
+  async function addUrl() {
+    const input = $('url-input');
+    const url = input.value.trim();
+    if (!url) { toast('Enter a URL', 'error'); return; }
+    const btn = $('add-url-btn');
+    btn.disabled = true; btn.textContent = 'Fetching...';
+    try {
+      const doc = await api.post('/documents/import-url', { url });
+      state.uploadedThisSession.add(doc.id);
+      toast('URL added — processing content', 'success');
+      input.value = '';
+      await loadDocuments();
+    } catch(err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Add URL'; }
   }
   async function uploadDoc(e) {
     e.preventDefault(); const fi=$('file-input'); if(!fi.files.length){toast('Select files','error');return;}
-    $('upload-progress').classList.remove('hidden');
+    const progressArea = $('upload-progress');
+    const progressFill = $('upload-progress-fill');
+    const progressText = $('upload-progress-text');
+    progressArea.classList.remove('hidden');
     const files = Array.from(fi.files);
     let success = 0;
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const pct = Math.round(((i) / files.length) * 100);
+      progressFill.style.width = pct + '%';
+      progressText.textContent = 'Uploading ' + (i+1) + ' of ' + files.length + ': ' + file.name;
       const fd=new FormData(); fd.append('file', file);
       try {
         const res=await fetch('/api/documents/upload',{method:'POST',credentials:'include',body:fd});
@@ -248,7 +294,9 @@
         success++;
       } catch(err){toast(file.name+': '+err.message,'error');}
     }
-    $('upload-progress').classList.add('hidden');
+    progressFill.style.width = '100%';
+    progressText.textContent = 'Done!';
+    setTimeout(() => { progressArea.classList.add('hidden'); progressFill.style.width = '0%'; }, 1500);
     if (success > 0) {
       toast(success+' file'+(success>1?'s':'')+' uploaded','success');
       closeModal(); fi.value=''; $('upload-file-info').classList.add('hidden'); $('upload-submit').disabled=true;
@@ -374,6 +422,14 @@
     $('chat-search').addEventListener('input', async function(){const s=this.value.trim();try{state.conversations=await api.get('/chat/conversations'+(s?'?search='+encodeURIComponent(s):''));renderConvos();}catch{}});
     $('upload-btn')?.addEventListener('click', openModal);
     $('reprocess-all-btn')?.addEventListener('click', reprocessAll);
+    $('batch-delete-btn')?.addEventListener('click', batchDelete);
+    $('add-url-btn')?.addEventListener('click', addUrl);
+    $('url-input')?.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } });
+    $('doc-select-all')?.addEventListener('change', function() {
+      document.querySelectorAll('.doc-checkbox').forEach(cb => { cb.checked = this.checked; });
+      updateBatchBtn();
+    });
+    document.addEventListener('change', function(e) { if (e.target.classList.contains('doc-checkbox')) updateBatchBtn(); });
     $('upload-form')?.addEventListener('submit', uploadDoc);
     $('doc-search')?.addEventListener('input', function(){renderDocs(this.value.toLowerCase());});
     const dz=$('dropzone'),fi=$('file-input');
