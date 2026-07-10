@@ -1,221 +1,202 @@
-# DocChat AI
+# DocuChat AI v2.0.0
 
-Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, ask questions, get answers grounded only in your documents with citations.
+Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, ask questions, get answers grounded only in your documents with page-accurate citations.
 
 ## Features
 
-- **Username/password authentication** (no email required)
-- **First user auto-becomes admin** — no self-registration
-- **Admin creates users** with username, display name, password, and role
-- **Role-based access**: Admin (all tabs), User (chat only)
-- **Document upload**: PDF, DOCX, TXT, Markdown, Excel (.xlsx)
-- **Multi-file drag-and-drop upload**
-- **Re-upload same filename** replaces old version automatically
-- **Document processing**: text extraction, semantic chunking, OpenAI embeddings
-- **Auto-polling document status** (processing → ready)
-- **Retry failed documents** without re-uploading
-- **RAG chat**: vector search + LLM with streaming responses
-- **Citations** with document name and page number
-- **Conflict resolution**: latest document/update wins
-- **Configurable LLM**: OpenAI, Gemini, Claude, OpenRouter, Local (Ollama)
-- **Configurable system prompt** from Admin UI
-- **API keys configured in UI** (not env vars)
-- **Conversation management**: pin, delete, clear all, 20-chat auto-limit
-- **Chat Logs tab**: admin sees all chats ever, export as CSV
-- **Mobile-friendly** with hamburger menu drawer
-- **Light theme**, monochrome design
+### Authentication & Users
+- Username + password authentication (no email required)
+- First user automatically becomes admin — no self-registration
+- Admin creates all user accounts (username, display name, password, role)
+- Role-based access: **Admin** (all tabs) / **User** (chat only)
+- Secure session management with proxy support for reverse-proxy deployments
+
+### Documents
+- Upload: PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls)
+- Multi-file drag-and-drop upload
+- Re-upload same filename automatically replaces old version (no duplicates)
+- Page-accurate extraction: PDF pages tracked individually, DOCX sections by heading, Excel by sheet
+- Auto-polling status (processing → ready) with real-time updates
+- Retry failed documents without re-uploading
+- **Re-embed All** button: regenerate embeddings when switching embedding models — no re-upload needed
+- Semantic chunking with configurable chunk size and overlap
+
+### Chat
+- RAG pipeline: vector search → relevant chunks → LLM generates grounded answer
+- Streaming responses (word-by-word)
+- Citations with document name, page number, and section heading
+- Conflict resolution: latest document/latest update wins, conflicts explicitly mentioned
+- Conversation management: pin, delete, clear all
+- 20-chat auto-limit (oldest unpinned auto-pruned)
+- Copy and Regenerate on any AI response
+
+### AI Configuration (Admin UI)
+- Configurable LLM: OpenAI, Google Gemini, Anthropic Claude, OpenRouter, Local (Ollama)
+- Configurable embedding model (text-embedding-3-small, text-embedding-3-large, etc.)
+- API keys managed in UI (not env vars) — masked display, stored securely
+- Editable system prompt controlling AI behavior, citation format, conflict rules
+- Temperature, max chunks, similarity threshold — all adjustable at runtime
+
+### Chat Logs (Admin)
+- Permanent log of every message from every user
+- Persists even after users clear their conversations
+- Search across all messages
+- Expand conversations to view full threads
+- Export as CSV for FAQ analysis and training needs identification
+- Admin can clear logs when needed
+
+### Mobile
+- Fully responsive design
+- Hamburger menu (slides from right) with navigation + conversation list
+- iOS Safari compatible (dynamic viewport, touch scrolling, no zoom on input)
+- Works on phones and tablets
+
+### Design
+- Light theme, monochrome design language (matching dictation app style)
+- Inter font, compact typography
+- Clean, minimal UI with no unnecessary elements
 
 ## Tech Stack
 
-- **Backend**: Node.js, Express
-- **Database**: sql.js (SQLite in-memory with periodic disk persistence)
-- **Frontend**: Vanilla JS single-page app (no framework, no build step)
-- **Embeddings**: OpenAI `text-embedding-3-small` (or local via Ollama)
-- **LLM**: Configurable — OpenAI, Gemini, Claude, OpenRouter, or local Ollama
+| Layer | Technology |
+|-------|-----------|
+| Backend | Node.js, Express |
+| Database | sql.js (SQLite, pure JS, no native compilation) |
+| Frontend | Vanilla HTML/CSS/JS (no framework, no build step) |
+| Embeddings | OpenAI text-embedding-3-small/large (configurable) |
+| LLM | OpenAI, Gemini, Claude, OpenRouter, Ollama (configurable) |
+| Vector Search | In-memory cosine similarity |
 
 ## Quick Start
 
 ```bash
-# Clone and install
-git clone <repo-url> document-chatbot
 cd document-chatbot
 npm install
-
-# Create .env (only PORT and SESSION_SECRET are required)
-cp .env.example .env
-# Edit .env and set SESSION_SECRET to a random string
-
-# Start
 npm start
 ```
 
-Open `http://localhost:3000`. On first visit you'll see a one-time setup screen to create the admin account. After that:
+Open `http://localhost:3000`. First visit shows a one-time admin setup screen.
 
-1. Log in → go to **Admin** tab → set your LLM provider and API key
-2. Go to **Documents** tab → upload knowledge documents
-3. Wait for status to show "ready"
-4. Go to **Chat** tab → ask questions
+1. Create admin account (username + password)
+2. Admin tab → set LLM provider + API key
+3. Documents tab → upload knowledge documents
+4. Wait for "ready" status
+5. Chat tab → ask questions
 
 ## Environment Variables
 
-Only two are needed to run:
+Only two needed in `.env`:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Server port |
-| `SESSION_SECRET` | `fallback-dev-secret` | Session signing secret (change in production) |
+| Variable | Default | Required |
+|----------|---------|----------|
+| `PORT` | `3000` | No |
+| `SESSION_SECRET` | `fallback-dev-secret` | Yes (change in production) |
 
-All other configuration (API keys, models, temperature, chunking settings) is managed through the **Admin UI** at runtime — no restart required.
+Generate a secure secret:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
-The `.env.example` file documents additional env vars that can optionally override defaults at startup, but the Admin UI takes precedence once configured.
+All other configuration (API keys, models, prompt, thresholds) is managed through the Admin UI at runtime.
 
 ## Project Structure
 
 ```
 document-chatbot/
-├── public/                  # Frontend (served as static files)
-│   ├── index.html           # Single-page app shell
-│   ├── app.js               # All frontend logic
-│   ├── styles.css           # Styles (light monochrome theme)
-│   └── favicon.svg
+├── public/                      # Frontend SPA
+│   ├── index.html              # Single-page app
+│   ├── app.js                  # All frontend logic
+│   ├── styles.css              # Light monochrome theme
+│   └── favicon.svg             # Bot face icon
 ├── src/
-│   ├── index.js             # Express server entry point
-│   ├── config/index.js      # Environment config
-│   ├── controllers/         # Route handlers
-│   │   ├── adminController.js
-│   │   ├── authController.js
-│   │   ├── chatController.js
-│   │   ├── documentController.js
-│   │   ├── knowledgeBaseController.js
-│   │   └── settingsController.js
-│   ├── database/
-│   │   ├── connection.js    # sql.js init + auto-save
-│   │   ├── db.js            # Query abstraction layer
-│   │   └── migrate.js       # Schema migrations
-│   ├── middleware/
-│   │   ├── auth.js          # Session auth + role checks
-│   │   ├── errorHandler.js  # Global error handler
-│   │   ├── upload.js        # Multer file upload config
-│   │   └── validate.js      # Input validation/sanitization
-│   ├── models/              # Data access layer
-│   │   ├── ChatLog.js
-│   │   ├── Chunk.js
-│   │   ├── Conversation.js
-│   │   ├── Document.js
-│   │   ├── Embedding.js
-│   │   ├── KnowledgeBase.js
-│   │   ├── Message.js
-│   │   ├── Settings.js
-│   │   ├── SystemConfig.js
-│   │   └── User.js
-│   ├── routes/              # Express route definitions
-│   │   ├── admin.js
-│   │   ├── auth.js
-│   │   ├── chat.js
-│   │   ├── documents.js
-│   │   ├── knowledgeBases.js
-│   │   └── settings.js
-│   ├── services/            # Business logic
-│   │   ├── authService.js
-│   │   ├── chunker.js       # Semantic text chunking
-│   │   ├── documentProcessor.js
-│   │   ├── embeddingService.js
-│   │   ├── extractors/index.js  # PDF/DOCX/TXT/MD/Excel extractors
-│   │   ├── llmService.js    # Multi-provider LLM client
-│   │   ├── ragService.js    # Orchestrates RAG pipeline
-│   │   └── vectorSearch.js  # Cosine similarity search
-│   └── utils/
-│       ├── errors.js        # Custom error classes
-│       └── logger.js        # Winston logger
-├── data/                    # SQLite database (auto-created)
-├── uploads/                 # Uploaded files (auto-created)
-├── package.json
-└── .env.example
+│   ├── index.js                # Express server + middleware
+│   ├── config/index.js         # Environment config
+│   ├── controllers/            # Route handlers (auth, chat, documents, admin)
+│   ├── database/               # sql.js connection, query helper, migrations
+│   ├── middleware/             # Auth, validation, upload, error handling
+│   ├── models/                 # Data access (User, Document, Chunk, Embedding, ChatLog, etc.)
+│   ├── routes/                 # Express route definitions
+│   ├── services/               # Business logic
+│   │   ├── extractors/         # PDF, DOCX, TXT, MD, Excel text extraction
+│   │   ├── chunker.js          # Semantic chunking with page/section tracking
+│   │   ├── embeddingService.js # OpenAI/local embedding generation
+│   │   ├── vectorSearch.js     # Cosine similarity search
+│   │   ├── llmService.js       # Multi-provider LLM (OpenAI, Gemini, Claude, etc.)
+│   │   ├── ragService.js       # RAG orchestration + streaming
+│   │   └── documentProcessor.js # Upload pipeline orchestration
+│   └── utils/                  # Logger, error classes
+├── data/chatbot.db             # SQLite database (all data)
+├── uploads/                    # Original uploaded files
+├── DEPLOYMENT.md               # VPS deployment guide
+├── .env.example                # Environment template
+└── package.json
 ```
 
 ## API Endpoints
 
 ### Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/auth/needs-setup` | Check if first-time setup is needed |
-| POST | `/api/auth/setup` | Create initial admin account |
-| POST | `/api/auth/login` | Log in |
-| POST | `/api/auth/logout` | Log out |
-| GET | `/api/auth/profile` | Get current user profile |
+- `GET /api/auth/needs-setup` — Check if first-time setup needed
+- `POST /api/auth/setup` — Create initial admin (one-time)
+- `POST /api/auth/login` — Login (username + password)
+- `POST /api/auth/logout` — Logout
+- `GET /api/auth/profile` — Current user profile
 
-### Documents (requires auth)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/documents` | List documents |
-| POST | `/api/documents/upload` | Upload a document (multipart) |
-| GET | `/api/documents/:id` | Get document details |
-| PATCH | `/api/documents/:id/rename` | Rename document |
-| POST | `/api/documents/:id/reindex` | Re-process/retry document |
-| DELETE | `/api/documents/:id` | Delete document |
+### Documents
+- `GET /api/documents` — List all documents
+- `POST /api/documents/upload` — Upload file (multipart)
+- `POST /api/documents/reprocess-all` — Re-embed all documents
+- `POST /api/documents/:id/reindex` — Retry single document
+- `DELETE /api/documents/:id` — Delete document
 
-### Chat (requires auth)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/chat/conversations` | List conversations |
-| POST | `/api/chat/conversations` | Create conversation |
-| GET | `/api/chat/conversations/:id` | Get conversation |
-| PATCH | `/api/chat/conversations/:id` | Update (rename, pin/unpin) |
-| DELETE | `/api/chat/conversations/:id` | Delete conversation |
-| GET | `/api/chat/conversations/:id/messages` | Get messages |
-| POST | `/api/chat/conversations/:id/messages` | Send message (supports `?stream=true`) |
-| POST | `/api/chat/conversations/:id/regenerate` | Regenerate last AI response |
+### Chat
+- `GET /api/chat/conversations` — List conversations
+- `POST /api/chat/conversations` — Create conversation
+- `PATCH /api/chat/conversations/:id` — Update (rename, pin/unpin)
+- `DELETE /api/chat/conversations/:id` — Delete conversation
+- `GET /api/chat/conversations/:id/messages` — Get messages
+- `POST /api/chat/conversations/:id/messages?stream=true` — Send message (SSE streaming)
+- `POST /api/chat/conversations/:id/regenerate` — Regenerate last response
 
-### Admin (requires admin role)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/admin/stats` | System statistics |
-| GET | `/api/admin/users` | List all users |
-| POST | `/api/admin/users` | Create user |
-| PATCH | `/api/admin/users/:id/role` | Change user role |
-| DELETE | `/api/admin/users/:id` | Delete user |
-| GET | `/api/admin/config` | Get system configuration |
-| PATCH | `/api/admin/config` | Update configuration (API keys, models, etc.) |
-| GET | `/api/admin/config/prompt` | Get system prompt |
-| PUT | `/api/admin/config/prompt` | Update system prompt |
-| GET | `/api/admin/chat-logs` | Get all chat logs |
-| GET | `/api/admin/chat-logs/conversations` | Get conversations summary |
-| GET | `/api/admin/chat-logs/conversations/:id` | Get conversation log |
-| GET | `/api/admin/chat-logs/export` | Export logs as CSV |
-| DELETE | `/api/admin/chat-logs` | Clear all logs |
-| GET | `/api/admin/health` | Health check |
-| GET | `/api/admin/errors` | Error logs |
-
-### Settings (requires auth)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/settings` | Get user settings |
-| PATCH | `/api/settings` | Update user settings |
+### Admin
+- `GET /api/admin/stats` — System statistics
+- `GET /api/admin/config` — Get configuration
+- `PATCH /api/admin/config` — Update configuration
+- `GET /api/admin/config/prompt` — Get system prompt
+- `PUT /api/admin/config/prompt` — Update system prompt
+- `GET /api/admin/users` — List users
+- `POST /api/admin/users` — Create user
+- `PATCH /api/admin/users/:id/role` — Change role
+- `DELETE /api/admin/users/:id` — Delete user
+- `GET /api/admin/chat-logs/conversations` — Chat log summaries
+- `GET /api/admin/chat-logs/conversations/:id` — Full conversation log
+- `GET /api/admin/chat-logs/export` — Download CSV
+- `DELETE /api/admin/chat-logs` — Clear all logs
 
 ## How It Works
 
-DocChat AI uses **Retrieval-Augmented Generation (RAG)** to answer questions from your documents:
+1. **Upload** → Text extracted page-by-page (PDF), by section (DOCX), by sheet (Excel)
+2. **Chunk** → Split into ~800-token overlapping segments preserving structure
+3. **Embed** → Each chunk converted to 1536/3072-dimension vector via embedding API
+4. **Store** → Vectors saved with metadata (page number, section heading, document name)
+5. **Query** → User question embedded → cosine similarity finds top matching chunks
+6. **Generate** → Top chunks sent to LLM with system prompt → grounded answer with citations
 
-1. **Upload** — Text is extracted from uploaded files (PDF, DOCX, TXT, Markdown, Excel)
-2. **Chunk** — Text is split into overlapping semantic chunks (~512 tokens) preserving paragraph and heading boundaries
-3. **Embed** — Each chunk is converted into a numerical vector using the embedding model
-4. **Store** — Vectors are saved in the database alongside metadata (document name, page, heading)
-5. **Query** — When a user asks a question, it's converted to a vector
-6. **Search** — Cosine similarity finds the most relevant chunks above the threshold
-7. **Generate** — The top chunks are sent to the LLM with the system prompt; the LLM answers grounded in that context
-8. **Cite** — Response includes document name and page number for each source
+## Deployment
 
-If no chunks match well enough, the bot reports it couldn't find the information and suggests rephrasing or uploading the relevant document.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for complete VPS deployment instructions including:
+- File transfer
+- PM2 / systemd setup
+- Nginx reverse proxy with SSL
+- Backup strategy
+- Troubleshooting
 
-## Default Credentials
-
-There are no default credentials. On first launch, the system shows a one-time setup screen where you create the admin account (username + password of your choice). After that, the setup screen is permanently disabled — all additional users must be created by an admin.
+Key note: When running behind a reverse proxy (Nginx), `trust proxy` is enabled for proper session handling over HTTPS.
 
 ## Backup
 
-To back up the entire system, copy:
-- `data/chatbot.db` — contains all data (users, documents metadata, embeddings, chat history, configuration)
-- `uploads/` — contains the original uploaded files
+Copy these two items to preserve everything:
+- `data/chatbot.db` — all data (users, embeddings, config, chat history, API keys)
+- `uploads/` — original uploaded files (needed for re-embedding)
 
 ## License
 

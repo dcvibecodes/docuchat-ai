@@ -23,10 +23,59 @@ async function extractText(filePath, fileType) {
 async function extractPdf(filePath) {
   const pdfParse = require('pdf-parse');
   const buffer = fs.readFileSync(filePath);
-  const data = await pdfParse(buffer);
+
+  // Custom page render to extract text page-by-page with markers
+  let pageTexts = [];
+  const options = {
+    pagerender: function(pageData) {
+      return pageData.getTextContent().then(function(textContent) {
+        let pageText = '';
+        let lastY = null;
+        for (const item of textContent.items) {
+          if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+            pageText += '\n';
+          }
+          pageText += item.str;
+          lastY = item.transform[5];
+        }
+        return pageText;
+      });
+    }
+  };
+
+  const data = await pdfParse(buffer, options);
+
+  // Re-parse page by page to get individual page texts
+  // pdf-parse doesn't directly give per-page text, so we use a workaround:
+  // Parse again with a custom render that collects pages separately
+  pageTexts = [];
+  const options2 = {
+    pagerender: function(pageData) {
+      return pageData.getTextContent().then(function(textContent) {
+        let pageText = '';
+        let lastY = null;
+        for (const item of textContent.items) {
+          if (lastY !== null && Math.abs(item.transform[5] - lastY) > 5) {
+            pageText += '\n';
+          }
+          pageText += item.str;
+          lastY = item.transform[5];
+        }
+        pageTexts.push(pageText);
+        return pageText;
+      });
+    }
+  };
+  await pdfParse(buffer, options2);
+
+  // Build text with page markers that the chunker can use
+  let fullText = '';
+  for (let i = 0; i < pageTexts.length; i++) {
+    fullText += `\n---PAGE ${i + 1}---\n${pageTexts[i]}`;
+  }
 
   return {
-    text: cleanText(data.text),
+    text: cleanText(fullText),
     pageCount: data.numpages,
     metadata: {
       title: data.info?.Title || null,
@@ -38,12 +87,37 @@ async function extractPdf(filePath) {
 async function extractDocx(filePath) {
   const mammoth = require('mammoth');
   const buffer = fs.readFileSync(filePath);
-  const result = await mammoth.extractRawText({ buffer });
+
+  // Use convertToHtml to detect headings, then extract structured text
+  const htmlResult = await mammoth.convertToHtml({ buffer });
+  const html = htmlResult.value;
+
+  // Parse HTML to extract text with heading markers for section tracking
+  // Convert headings to section markers the chunker can use
+  let text = html
+    // Convert headings to markers
+    .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n\n---SECTION: $1---\n\n')
+    // Convert list items
+    .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n')
+    // Convert paragraphs to double newlines
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<p[^>]*>/gi, '')
+    // Convert line breaks
+    .replace(/<br\s*\/?>/gi, '\n')
+    // Remove all remaining HTML tags
+    .replace(/<[^>]+>/g, '')
+    // Decode HTML entities
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
 
   return {
-    text: cleanText(result.value),
-    pageCount: null, // DOCX doesn't have fixed pages
-    metadata: {}
+    text: cleanText(text),
+    pageCount: null,
+    metadata: { format: 'docx' }
   };
 }
 

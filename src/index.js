@@ -23,6 +23,7 @@ const adminRoutes = require('./routes/admin');
 
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
 
   // Ensure required directories exist
   const dirs = [config.paths.data, config.paths.uploads];

@@ -24,16 +24,21 @@ function chunkText(text, options = {}) {
     const trimmed = paragraph.trim();
     if (!trimmed) continue;
 
-    // Detect headings (lines that look like headings)
-    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)/) || 
-                          (trimmed.length < 100 && trimmed === trimmed.replace(/[.!?]$/, '') && !trimmed.includes('\n') ? [null, trimmed] : null);
-    
-    if (headingMatch && trimmed.match(/^#{1,6}\s+/)) {
+    // Detect headings (markdown style)
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)/);
+    if (headingMatch) {
       currentHeading = headingMatch[1];
     }
 
-    // Detect page breaks (common in PDF extractions)
-    const pageMatch = trimmed.match(/^---\s*Page\s+(\d+)\s*---$/i);
+    // Detect section markers (from DOCX extraction)
+    const sectionMatch = trimmed.match(/^---SECTION:\s*(.+?)\s*---$/i);
+    if (sectionMatch) {
+      currentHeading = sectionMatch[1];
+      continue;
+    }
+
+    // Detect page breaks (from PDF extraction)
+    const pageMatch = trimmed.match(/^---\s*PAGE\s+(\d+)\s*---$/i);
     if (pageMatch) {
       currentPage = parseInt(pageMatch[1]);
       continue;

@@ -32,7 +32,8 @@ async function generateResponse({ query, conversationId, userId, knowledgeBaseId
 
   for (const chunk of relevantChunks) {
     const pageInfo = chunk.pageNumber ? ` (Page ${chunk.pageNumber})` : '';
-    context += `\n---\nDocument: ${chunk.documentName}${pageInfo}\n${chunk.content}\n`;
+    const sectionInfo = chunk.heading ? ` [Section: ${chunk.heading}]` : '';
+    context += `\n---\nDocument: ${chunk.documentName}${pageInfo}${sectionInfo}\n${chunk.content}\n`;
 
     citations.push({
       documentName: chunk.documentName,
