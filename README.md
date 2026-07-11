@@ -1,36 +1,50 @@
-# DocuChat AI
+# DocuChat AI v2.2.0
 
 Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
 
 ## Features
 
-- **Username/password authentication** (no email required)
-- **First user auto-becomes admin** — no self-registration
-- **Admin creates users** with username, display name, password, and role
-- **Role-based access**: Admin (all tabs), User (chat only)
-- **Document upload**: PDF, DOCX, TXT, Markdown, Excel (.xlsx)
-- **Web URL sources**: Paste a URL → content is scraped and indexed
+### Chat & UX
+- **RAG-powered chat** — answers only from uploaded document content, never from outside knowledge
+- **Streaming responses** — word-by-word display (toggleable)
+- **Inline citations** — document name, page number, and dates for chronological updates
+- **Suggested prompts** — up to 10 admin-configured prompts shown as cards on empty chat (drag-to-reorder, editable)
+- **Conversation management** — pin, delete, clear all, 20-chat auto-limit
+- **Regenerate & copy** — hover actions on AI responses
+- **Keyboard shortcuts** — Ctrl+N (new chat), Ctrl+Shift+K (clear all), Escape (close dialogs)
+- **Help tab visible to all users** — user-friendly content for regular users, admin-specific sections for admins
+- **Mobile hamburger drawer** — full responsive design, all features accessible on mobile
+- **Password change** — available to all users from header or mobile menu
+
+### Documents
 - **Multi-file drag-and-drop upload** with progress indicator
-- **Batch select & delete** documents with checkboxes
+- **Web URL scraping** — paste a URL to scrape and index content as a document source
+- **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), Web URLs
+- **Batch delete with checkboxes** — select all or individual, bulk remove
+- **Re-embed All** — regenerate embeddings without re-uploading after changing embedding model
 - **Re-upload same filename** replaces old version automatically
-- **Re-embed All** button: regenerate embeddings without re-uploading after changing embedding model
-- **Document processing**: text extraction (page-by-page for PDFs), semantic chunking, embeddings
-- **Accurate page citations**: PDF pages, DOCX sections, Excel sheet names
-- **Auto-polling document status** (processing → ready)
 - **Retry failed documents** without re-uploading
-- **RAG chat**: vector search + LLM with streaming responses
-- **Inline citations** with document name, page number, and dates for chronological updates
-- **Conflict resolution**: latest document/update wins, conflicts are reported
-- **Configurable LLM**: OpenAI, Gemini, Claude, OpenRouter, Local (Ollama)
-- **Configurable embedding model**: switch models and re-embed from UI
-- **Configurable system prompt** from Admin UI
-- **API keys configured in UI** (not env vars)
-- **Conversation management**: pin, delete, clear all, 20-chat auto-limit
-- **Chat Logs tab**: admin sees all chats ever, export as CSV
-- **Help tab**: complete documentation for admins
-- **Mobile-friendly** with hamburger menu drawer
-- **Light theme**, monochrome design
-- **Reverse proxy ready** with `trust proxy` support for HTTPS deployments
+- **Auto-polling status** — processing → ready (refreshes every 3 seconds)
+- **Accurate page citations** — PDF pages, DOCX sections, Excel sheet names
+
+### Admin & Configuration
+- **3-tier roles: user, admin, techadmin**
+  - User: Chat + Help only
+  - Admin: Chat + Documents + Chat Logs + Admin (except AI config/prompt) + Help
+  - Tech Admin: Everything including AI configuration and system prompt
+- **AI Configuration** — LLM provider (OpenAI, Gemini, Claude, OpenRouter, Local/Ollama), embedding model, temperature, max chunks, similarity threshold, streaming toggle
+- **System prompt** — configurable from Admin UI, controls grounding, citations, conflict resolution
+- **User Management** — create users (username + display name + password + role), promote/demote, remove
+- **Chat usage bar chart** with date range selector (today, 7/30/90/180/365 days)
+- **Chat Logs** — view all user conversations, search, expand, export as CSV, clear all
+- **API keys configured in UI** — not in environment variables
+
+### Infrastructure
+- **Username/password auth** — no email required, first user auto-becomes admin, no self-registration
+- **Reverse proxy ready** — `trust proxy` support for HTTPS/Nginx deployments
+- **Sessions** — in-memory with memorystore
+- **Conflict resolution** — latest document/update wins, conflicts reported in responses
+- **No build step** — vanilla JS single-page app frontend
 
 ## Tech Stack
 
@@ -64,6 +78,16 @@ Open `http://localhost:3000`. First visit shows a one-time setup screen to creat
 | `SESSION_SECRET` | `fallback-dev-secret` | Session signing secret (change in production) |
 
 All other configuration (API keys, models, temperature, prompt) is managed through the Admin UI.
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+N` (or `Cmd+N`) | Start a new chat |
+| `Ctrl+Shift+K` | Clear all chats |
+| `Enter` | Send message |
+| `Shift+Enter` | New line in message |
+| `Escape` | Close any open modal/drawer |
 
 ## Project Structure
 
@@ -104,6 +128,7 @@ document-chatbot/
 - `POST /api/auth/login` — Log in (username + password)
 - `POST /api/auth/logout` — Log out
 - `GET /api/auth/profile` — Current user
+- `POST /api/auth/change-password` — Change password
 
 ### Documents
 - `GET /api/documents` — List all
@@ -132,10 +157,16 @@ document-chatbot/
 - `PATCH /api/admin/config` — Update configuration
 - `GET /api/admin/config/prompt` — Get system prompt
 - `PUT /api/admin/config/prompt` — Update system prompt
+- `GET /api/admin/config/suggested-prompts` — Get suggested prompts
+- `PUT /api/admin/config/suggested-prompts` — Update suggested prompts
 - `GET /api/admin/chat-logs/conversations` — Chat log summaries
 - `GET /api/admin/chat-logs/conversations/:id` — Conversation detail
 - `GET /api/admin/chat-logs/export` — Export CSV
+- `GET /api/admin/chat-logs/stats` — Chat usage stats (for chart)
 - `DELETE /api/admin/chat-logs` — Clear all logs
+
+### Settings (all users)
+- `GET /api/settings/suggested-prompts` — Get suggested prompts for chat UI
 
 ## How It Works
 
@@ -148,10 +179,8 @@ document-chatbot/
 
 ## Deployment
 
-See the Help tab in the app for complete documentation, or copy the project to your VPS:
-
 ```bash
-# Copy project (exclude node_modules)
+# Copy project to VPS (exclude node_modules)
 scp -r document-chatbot/ user@vps:/home/user/
 
 # On VPS
@@ -167,8 +196,8 @@ For HTTPS, put Nginx in front with SSL termination. The app includes `trust prox
 ## Backup
 
 Copy these two items to back up everything:
-- `data/chatbot.db` — all data
-- `uploads/` — original files
+- `data/chatbot.db` — all data (users, embeddings, config, logs)
+- `uploads/` — original uploaded documents
 
 ## License
 

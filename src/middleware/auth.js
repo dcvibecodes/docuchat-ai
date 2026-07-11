@@ -14,7 +14,17 @@ function requireAdmin(req, res, next) {
   if (!req.session || !req.session.userId) {
     return next(new AuthenticationError());
   }
-  if (req.session.role !== 'admin') {
+  if (req.session.role !== 'admin' && req.session.role !== 'techadmin') {
+    return next(new AuthorizationError());
+  }
+  next();
+}
+
+function requireTechAdmin(req, res, next) {
+  if (!req.session || !req.session.userId) {
+    return next(new AuthenticationError());
+  }
+  if (req.session.role !== 'techadmin') {
     return next(new AuthorizationError());
   }
   next();
@@ -27,4 +37,4 @@ function guestOnly(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireAdmin, guestOnly };
+module.exports = { requireAuth, requireAdmin, requireTechAdmin, guestOnly };

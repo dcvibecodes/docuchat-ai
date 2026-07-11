@@ -88,7 +88,7 @@ async function startServer() {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: config.env === 'production',
+      secure: false,
       httpOnly: true,
       maxAge: config.session.maxAge,
       sameSite: 'lax'

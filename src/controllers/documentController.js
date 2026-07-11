@@ -169,14 +169,20 @@ class DocumentController {
         throw new ValidationError('URL is required');
       }
 
+      // Auto-add https:// if no protocol
+      let fullUrl = url.trim();
+      if (!fullUrl.match(/^https?:\/\//i)) {
+        fullUrl = 'https://' + fullUrl;
+      }
+
       // Validate URL format
-      try { new URL(url); } catch { throw new ValidationError('Invalid URL format'); }
+      try { new URL(fullUrl); } catch { throw new ValidationError('Invalid URL format'); }
 
       const kb = KnowledgeBase.getDefaultForUser(req.session.userId);
       if (!kb) throw new Error('No knowledge base found');
 
       // Check if this URL was already added
-      const existing = Document.findByOriginalName(url);
+      const existing = Document.findByOriginalName(fullUrl);
       if (existing) {
         Embedding.deleteByDocument(existing.id);
         Chunk.deleteByDocument(existing.id);
@@ -185,7 +191,7 @@ class DocumentController {
 
       // Scrape the URL
       const { scrapeUrl } = require('../services/webScraper');
-      const { title, text } = await scrapeUrl(url);
+      const { title, text } = await scrapeUrl(fullUrl);
 
       // Save the text content as a virtual file
       const fs = require('fs');
@@ -201,7 +207,7 @@ class DocumentController {
         userId: req.session.userId,
         knowledgeBaseId: kb.id,
         filename: filename,
-        originalName: url,
+        originalName: fullUrl,
         fileType: 'url',
         fileSize: Buffer.byteLength(text, 'utf-8')
       });

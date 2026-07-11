@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=2.5">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
@@ -94,10 +94,11 @@
           <button class="tab-btn admin-only" data-view="documents">Documents</button>
           <button class="tab-btn admin-only" data-view="chat-logs">Chat Logs</button>
           <button class="tab-btn admin-only" data-view="admin">Admin</button>
-          <button class="tab-btn admin-only" data-view="help">Help</button>
+          <button class="tab-btn" data-view="help">Help</button>
         </nav>
         <div class="top-header-right">
           <span id="username-display" class="username"></span>
+          <button id="change-pw-btn" class="btn btn-ghost btn-sm">Password</button>
           <button id="logout-btn" class="btn btn-ghost btn-sm">Logout</button>
           <button id="mobile-menu-btn" class="btn-icon mobile-only" title="Menu">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -124,6 +125,7 @@
             <div class="chat-main-header">
               <h2 id="current-chat-title">New Conversation</h2>
               <div class="chat-main-actions">
+                <span class="shortcut-hint">Alt+N new chat · Esc close</span>
                 <button id="pin-chat-btn" class="btn-icon" title="Pin">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 2L14.5 3.5l1 1-4.5 4.5H7l-2 2 4.5 2.5L5 18l1 1 4.5-4.5L13 19l2-2v-4l4.5-4.5 1 1L22 8z"/></svg>
                 </button>
@@ -201,8 +203,25 @@
             <div id="admin-stats" class="stats-grid"></div>
           </div>
 
-          <!-- AI Configuration -->
+          <!-- Chat Usage Chart -->
           <div class="admin-section">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+              <h3>Chat Usage by User</h3>
+              <select id="chart-range" class="chart-range-select">
+                <option value="1">Today</option>
+                <option value="2">Yesterday</option>
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 3 months</option>
+                <option value="180">Last 6 months</option>
+                <option value="365">Last 1 year</option>
+              </select>
+            </div>
+            <div id="chat-chart" class="chat-chart"></div>
+          </div>
+
+          <!-- AI Configuration -->
+          <div class="admin-section techadmin-locked">
             <h3>AI Configuration</h3>
             <div class="config-grid">
               <div class="form-group">
@@ -303,11 +322,22 @@
           </div>
 
           <!-- System Prompt -->
-          <div class="admin-section">
+          <div class="admin-section techadmin-locked">
             <h3>System Prompt</h3>
             <p class="section-desc">Controls how the AI responds. Keep it focused on answering only from document context.</p>
             <textarea id="cfg-system-prompt" class="prompt-textarea" rows="10"></textarea>
             <button id="save-prompt-btn" class="btn btn-primary">Save Prompt</button>
+          </div>
+
+          <!-- Suggested Prompts -->
+          <div class="admin-section">
+            <h3>Suggested Prompts</h3>
+            <p class="section-desc">Up to 10 prompts shown as cards on the empty chat screen. Users click one to pre-fill the message box.</p>
+            <div id="suggested-prompts-list" class="suggested-prompts-admin"></div>
+            <div class="suggested-prompt-add" id="suggested-prompt-add-row">
+              <input type="text" id="new-prompt-input" placeholder="e.g., What is the draw process for UWM?" class="documents-search" style="flex:1;">
+              <button id="add-prompt-btn" class="btn btn-ghost">Add</button>
+            </div>
           </div>
 
           <!-- User Management -->
@@ -318,7 +348,7 @@
                 <div class="form-group"><label>Username</label><input type="text" id="new-user-username" placeholder="username"></div>
                 <div class="form-group"><label>Display Name</label><input type="text" id="new-user-name" placeholder="John Doe"></div>
                 <div class="form-group"><label>Password</label><input type="text" id="new-user-password" placeholder="password"></div>
-                <div class="form-group"><label>Role</label><select id="new-user-role"><option value="user">User</option><option value="admin">Admin</option></select></div>
+                <div class="form-group"><label>Role</label><select id="new-user-role"><option value="user">User</option><option value="admin">Admin</option><option value="techadmin" class="techadmin-only">Tech Admin</option></select></div>
                 <div class="form-group"><label>&nbsp;</label><button id="create-user-btn" class="btn btn-primary btn-full">Create User</button></div>
               </div>
             </div>
@@ -327,202 +357,133 @@
         </div>
       </div>
 
-      <!-- Help View (Admin only) -->
+      <!-- Help View -->
       <div id="help-view" class="view">
         <div class="help-container">
           <h2>Help & Documentation</h2>
 
+          <!-- User Help (visible to all) -->
           <div class="help-section">
-            <h3>Overview</h3>
-            <p>DocuChat AI is a document-based AI chatbot for internal use. Admins upload knowledge documents (SOPs, processing guidelines, lender updates) and team members ask questions via chat. The AI answers <strong>only</strong> from uploaded document content — never from outside knowledge.</p>
-            <p>There are two roles:</p>
+            <h3>Getting Started</h3>
+            <p>DocuChat AI answers your questions using information from uploaded knowledge documents (SOPs, guidelines, processing updates). It only answers from what's in the documents — it won't guess or use outside knowledge.</p>
             <ul>
-              <li><strong>Admin</strong> — Full access: Chat, Documents, Chat Logs, Admin settings, Help. Can manage users, upload/delete documents, configure AI, view all chat history.</li>
-              <li><strong>User</strong> — Chat only. Can ask questions, pin conversations, clear their own chat history. Cannot see documents, settings, or other users' chats.</li>
+              <li>Type your question in the text box at the bottom and press Enter or click Send.</li>
+              <li>The AI will respond with an answer and show which documents it used as sources below the answer.</li>
+              <li>If the bot can't find the answer, it will tell you. Try rephrasing your question or contact your admin to check if the relevant document is uploaded.</li>
             </ul>
           </div>
 
           <div class="help-section">
-            <h3>Initial Setup</h3>
-            <ol>
-              <li>On first launch, the system shows a one-time setup screen to create the admin account (username + display name + password).</li>
-              <li>After the admin account is created, the setup screen is permanently disabled. No one can self-register.</li>
-              <li>Log in → go to <strong>Admin</strong> tab → set your LLM provider and API key (e.g., OpenAI).</li>
-              <li>Go to <strong>Documents</strong> tab → upload your knowledge documents.</li>
-              <li>Wait for documents to show "ready" status (processing takes a few seconds depending on file size).</li>
-              <li>Go to <strong>Chat</strong> tab → ask a question. The AI will answer from your documents with citations.</li>
-              <li>Create user accounts for team members in <strong>Admin</strong> → User Management.</li>
-            </ol>
-          </div>
-
-          <div class="help-section">
-            <h3>How the AI Works (RAG Pipeline)</h3>
-            <p>This system uses <strong>Retrieval-Augmented Generation (RAG)</strong> — the same approach used by Chatbase, CustomGPT, and similar products:</p>
-            <ol>
-              <li><strong>Document Upload:</strong> Text is extracted from the file (PDF, DOCX, TXT, Markdown, or Excel).</li>
-              <li><strong>Chunking:</strong> Text is split into overlapping semantic chunks (~512 tokens each). Paragraph and heading boundaries are preserved. Chunks overlap by ~50 tokens to avoid losing context at boundaries.</li>
-              <li><strong>Embedding:</strong> Each chunk is converted into a 1536-dimension numerical vector using the embedding model (default: OpenAI <code>text-embedding-3-small</code>).</li>
-              <li><strong>Storage:</strong> Vectors are stored in the database alongside metadata (document name, page number, heading).</li>
-              <li><strong>Query:</strong> When a user asks a question, it's also converted into a vector.</li>
-              <li><strong>Vector Search:</strong> The system computes cosine similarity between the query vector and all stored vectors, finding the most relevant chunks.</li>
-              <li><strong>Filtering:</strong> Only chunks above the similarity threshold are kept. The top N chunks (configurable) are selected.</li>
-              <li><strong>LLM Generation:</strong> Selected chunks are sent to the LLM along with the system prompt. The LLM generates an answer grounded in those chunks.</li>
-              <li><strong>Citations:</strong> The response includes document name and page number for every source used.</li>
-            </ol>
-            <p>If no chunks match well enough, the bot says it couldn't find the information and suggests rephrasing or uploading the relevant document.</p>
-          </div>
-
-          <div class="help-section">
-            <h3>Documents Tab</h3>
+            <h3>Chat Features</h3>
             <ul>
-              <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select files. Supports <strong>multiple files at once</strong>. Progress indicator shows which file is being uploaded (e.g., "Uploading 3 of 7: filename.pdf").</li>
-              <li><strong>Add URL:</strong> Paste a public website URL and click "Add URL". The system scrapes the page content and adds it to the knowledge base like any other document.</li>
-              <li><strong>Supported formats:</strong> PDF (text-based), DOCX, TXT, Markdown (.md), Excel (.xlsx, .xls), Web URLs.</li>
-              <li><strong>Status badges:</strong>
-                <ul>
-                  <li>"new" — uploaded in current session</li>
-                  <li>"processing" — being indexed (auto-refreshes every 3 seconds)</li>
-                  <li>"ready" — available for chat queries</li>
-                  <li>"error" — processing failed (error message shown, Retry button available)</li>
-                </ul>
-              </li>
-              <li><strong>Search:</strong> Type in the search box to filter documents by name in real-time.</li>
-              <li><strong>Select &amp; Batch Delete:</strong> Use checkboxes to select multiple documents. "Select all" selects everything. Click "Delete Selected" to remove them all at once (with confirmation).</li>
-              <li><strong>Single Delete:</strong> Click "Delete" next to any document (with confirmation).</li>
-              <li><strong>Re-upload:</strong> If you upload a document with the same filename as an existing one, the old version is automatically replaced.</li>
-              <li><strong>Re-embed All:</strong> After changing the embedding model in Admin settings, click "Re-embed All" to regenerate embeddings for all documents without re-uploading. Button shows "Re-embedding..." while processing.</li>
-              <li><strong>Retry:</strong> If processing failed (e.g., VPN blocking API), click Retry to re-process without re-uploading.</li>
-              <li><strong>No retraining needed:</strong> Adding or removing documents takes effect immediately.</li>
-              <li><strong>File size limit:</strong> 50 MB per file.</li>
-              <li><strong>Excel files:</strong> All sheets are extracted and indexed. Sheet names are preserved in citations.</li>
-              <li><strong>Web URLs:</strong> Content is scraped, cleaned (navigation/ads removed), and indexed. The URL appears as the document name in citations. Re-adding the same URL replaces the old version.</li>
+              <li><strong>New Chat:</strong> Click "+ New" in the sidebar (desktop) or use the hamburger menu (mobile). Keyboard shortcut: Ctrl+N.</li>
+              <li><strong>Pin Chats:</strong> Click the pin icon to keep important conversations at the top of your list.</li>
+              <li><strong>Delete Chats:</strong> Click the trash icon to remove a conversation.</li>
+              <li><strong>Clear All:</strong> Click "Clear" to remove all your conversations.</li>
+              <li><strong>Copy:</strong> Hover over an AI response and click "Copy" to copy the text.</li>
+              <li><strong>Regenerate:</strong> Hover over an AI response and click "Regenerate" to get a fresh answer.</li>
+              <li><strong>Suggested Prompts:</strong> On a new chat, click any suggested prompt card to pre-fill it in the text box. Edit if needed, then hit Send.</li>
+              <li><strong>Auto-limit:</strong> Up to 20 conversations are kept. Oldest unpinned ones are removed automatically.</li>
             </ul>
           </div>
 
           <div class="help-section">
-            <h3>Chat Tab</h3>
+            <h3>Keyboard Shortcuts</h3>
             <ul>
-              <li><strong>New Conversation:</strong> Click "+ New" in the sidebar (desktop) or hamburger menu (mobile).</li>
-              <li><strong>Ask Questions:</strong> Type your question and press Enter or click Send.</li>
-              <li><strong>Streaming:</strong> Answers appear word-by-word as generated (if enabled in Admin settings).</li>
-              <li><strong>Citations:</strong> Every answer shows which documents and pages it came from.</li>
-              <li><strong>Pin Conversations:</strong> Click the pin icon to keep important chats at the top. Click again to unpin.</li>
-              <li><strong>Delete Conversation:</strong> Click the trash icon to remove a conversation.</li>
-              <li><strong>Clear All:</strong> Click "Clear" to remove all conversations at once.</li>
-              <li><strong>Auto-limit:</strong> Maximum 20 conversations are kept. Oldest unpinned conversations are automatically removed when the limit is exceeded.</li>
-              <li><strong>Regenerate:</strong> Hover over an AI response → click "Regenerate" to get a fresh answer.</li>
-              <li><strong>Copy:</strong> Hover over a response → click "Copy" to copy the text to clipboard.</li>
-              <li><strong>Mobile:</strong> Use the hamburger menu (≡) on the top-right to access conversations, navigation, and account options.</li>
+              <li><strong>Alt+N</strong> — Start a new chat</li>
+              <li><strong>Alt+X</strong> — Clear all chats</li>
+              <li><strong>Enter</strong> — Send message (Shift+Enter for new line)</li>
+              <li><strong>Escape</strong> — Close any open dialog</li>
             </ul>
           </div>
 
           <div class="help-section">
-            <h3>Chat Logs Tab (Admin only)</h3>
+            <h3>Tips for Better Answers</h3>
             <ul>
-              <li><strong>Purpose:</strong> View every chat message from every user — even after users clear their own conversations.</li>
-              <li><strong>Persistence:</strong> Chat logs are permanent. Clearing conversations from the Chat tab only removes them from the user's view, not from the logs.</li>
-              <li><strong>Search:</strong> Filter logs by message content.</li>
-              <li><strong>Expand:</strong> Click a conversation to see all messages in that thread.</li>
-              <li><strong>Export CSV:</strong> Download all chat logs as a CSV file for analysis (FAQ identification, training needs, usage patterns).</li>
-              <li><strong>Clear All Logs:</strong> Permanently delete all chat history (with confirmation).</li>
-              <li><strong>Use cases:</strong> Identify frequently asked questions, spot knowledge gaps, assess team training needs, audit AI accuracy.</li>
+              <li>Be specific. "What is the draw process for UWM?" works better than "tell me about draws."</li>
+              <li>Mention the lender name if your question is lender-specific.</li>
+              <li>If the answer seems outdated, ask "What is the latest update on [topic]?"</li>
+              <li>If the bot says it can't find the information, the relevant document may not be uploaded yet — let your admin know.</li>
             </ul>
           </div>
 
           <div class="help-section">
-            <h3>Admin Tab — AI Configuration</h3>
-            <ul>
-              <li><strong>LLM Provider:</strong> OpenAI, Google Gemini, Anthropic Claude, OpenRouter, or local Ollama.</li>
-              <li><strong>API Key:</strong> Stored securely on the server. Masked in the UI (only last 4 characters shown).</li>
-              <li><strong>Model:</strong> e.g., <code>gpt-4o-mini</code>, <code>gpt-4o</code>, <code>claude-3-haiku-20240307</code>, <code>gemini-1.5-flash</code>.</li>
-              <li><strong>Embedding Model:</strong> Default: <code>text-embedding-3-small</code>. Changing this after documents are uploaded requires deleting and re-uploading all documents.</li>
-              <li><strong>Temperature (0.0–1.0):</strong> Lower = more focused/deterministic. Recommended: 0.1 for factual Q&A.</li>
-              <li><strong>Max Chunks (1–20):</strong> How many document segments to include as context per query. More = broader context but higher cost. Recommended: 5–8.</li>
-              <li><strong>Similarity Threshold (0.1–0.5):</strong> Minimum relevance score for a chunk to be included. Higher = stricter. Recommended: 0.3.</li>
-              <li><strong>Streaming:</strong> Toggle real-time word-by-word response display.</li>
-            </ul>
-          </div>
-
-          <div class="help-section">
-            <h3>Admin Tab — System Prompt</h3>
-            <p>The system prompt controls how the AI behaves. It is sent before every conversation. Key aspects it controls:</p>
-            <ul>
-              <li>Grounding — forcing the AI to answer only from provided document context</li>
-              <li>Citation format — requiring document name and page numbers</li>
-              <li>Conflict resolution — preferring the latest document/update when information conflicts</li>
-              <li>Conversational behavior — how it handles greetings and off-topic questions</li>
-              <li>Restrictions — what the AI should refuse to do (e.g., drafting emails)</li>
-            </ul>
-            <p><strong>Caution:</strong> Modifying the system prompt significantly affects answer quality. Always keep the "answer only from context" rules intact.</p>
-          </div>
-
-          <div class="help-section">
-            <h3>Admin Tab — User Management</h3>
-            <ul>
-              <li><strong>Create User:</strong> Provide username, display name, password, and role. There is no self-registration — admins create all accounts.</li>
-              <li><strong>Login:</strong> Users log in with username + password.</li>
-              <li><strong>Roles:</strong> "Admin" sees all tabs. "User" sees only the Chat tab.</li>
-              <li><strong>Change Role:</strong> Click "Make Admin" or "Make User" to promote/demote.</li>
-              <li><strong>Remove User:</strong> Permanently deletes the account. You cannot delete your own account.</li>
-            </ul>
-          </div>
-
-          <div class="help-section">
-            <h3>Best Practices for Document Uploads</h3>
-            <ul>
-              <li><strong>Be specific with filenames:</strong> e.g., "Lender_ABC_Processing_Guidelines_2026.pdf" — the filename appears in citations.</li>
-              <li><strong>Use text-based PDFs:</strong> Scanned image PDFs won't extract text. Convert to searchable PDF first.</li>
-              <li><strong>Keep documents focused:</strong> A 10-page SOP per lender works better than a 500-page omnibus document.</li>
-              <li><strong>Upload updates separately:</strong> When a processing update arrives, upload it as a new document. The AI prioritizes the most recent content when conflicts exist.</li>
-              <li><strong>Delete obsolete documents:</strong> If a guideline is fully superseded, delete the old version to avoid contradictory answers.</li>
-              <li><strong>Test after uploading:</strong> Ask a question you know the answer to and verify correctness.</li>
-              <li><strong>Multiple files at once:</strong> Drag-and-drop multiple files into the upload area to batch upload.</li>
-            </ul>
-          </div>
-
-          <div class="help-section">
-            <h3>Conflict Resolution</h3>
-            <p>The system prompt instructs the AI to handle conflicting information as follows:</p>
-            <ul>
-              <li>If multiple documents conflict → the <strong>most recently uploaded</strong> document takes priority.</li>
-              <li>If a single document contains chronological updates that conflict → the <strong>latest dated entry</strong> takes priority.</li>
-              <li>The AI will explicitly mention the conflict in its response — stating which documents disagree, on which pages, and which version it's using.</li>
-            </ul>
-          </div>
-
-          <div class="help-section">
-            <h3>Troubleshooting</h3>
-            <table class="help-table">
-              <tr><td>"I couldn't find that information"</td><td>The relevant document may not be uploaded, or the question doesn't match how the document phrases it. Try rephrasing. Check if the document shows "ready" status.</td></tr>
-              <tr><td>Wrong/outdated answer</td><td>An old version of the document may still be uploaded. Delete the old version.</td></tr>
-              <tr><td>Document stuck on "processing"</td><td>The embedding API call likely failed (VPN blocking external networks, wrong API key, rate limit). Check the error message, fix the issue, then click Retry.</td></tr>
-              <tr><td>Document shows "error" + "fetch failed"</td><td>Network connectivity issue. Disconnect VPN if it blocks external API calls, then click Retry.</td></tr>
-              <tr><td>Slow responses</td><td>Enable streaming in Admin settings. Use a smaller/faster model (GPT-4o-mini vs GPT-4o).</td></tr>
-              <tr><td>Bot mixes up lenders</td><td>Reduce "Max Chunks" in Admin settings, or increase the similarity threshold to get more focused results.</td></tr>
-              <tr><td>Garbled/incomplete responses</td><td>This was a streaming parser issue — should be resolved. If it recurs, try disabling streaming temporarily.</td></tr>
-              <tr><td>Can't log in</td><td>Username is case-insensitive. If you forgot your password, another admin can delete and recreate your account.</td></tr>
-            </table>
-          </div>
-
-          <div class="help-section">
-            <h3>Data & Storage</h3>
-            <ul>
-              <li><strong>Database:</strong> <code>data/chatbot.db</code> (SQLite). Back up this file to preserve everything.</li>
-              <li><strong>Uploaded files:</strong> Stored in the <code>uploads/</code> directory.</li>
-              <li><strong>Sessions:</strong> Stored in memory — users must re-login after server restart.</li>
-              <li><strong>API keys:</strong> Stored in the database, never sent to the client browser (UI shows masked values).</li>
-              <li><strong>Chat logs:</strong> Permanent until explicitly cleared by an admin via the Chat Logs tab.</li>
-              <li><strong>Backups:</strong> To back up the entire system, copy <code>data/chatbot.db</code> and the <code>uploads/</code> folder.</li>
-            </ul>
+            <h3>Change Password</h3>
+            <p>Click the "Password" button in the top header (desktop) or in the hamburger menu (mobile). Enter your current password, then your new password twice.</p>
           </div>
 
           <div class="help-section">
             <h3>Mobile Access</h3>
             <ul>
-              <li>The app is fully responsive and works on phones and tablets.</li>
-              <li>On mobile, the top navigation tabs move into a <strong>hamburger menu</strong> (≡) on the top-right.</li>
-              <li>The conversation sidebar also moves into the hamburger menu.</li>
-              <li>All features (chat, upload, admin settings) are accessible on mobile.</li>
+              <li>Use the hamburger menu (≡) on the top-right to access conversations and navigation.</li>
+              <li>All features work on mobile — chat, pin, clear, change password.</li>
+            </ul>
+          </div>
+
+          <!-- Admin Help (admin/techadmin only) -->
+          <div class="help-section admin-only" style="display:none;">
+            <h3>Admin — Documents</h3>
+            <ul>
+              <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select multiple files. Supports PDF, DOCX, TXT, Markdown, Excel (.xlsx).</li>
+              <li><strong>Add URL:</strong> Paste a public website URL to scrape and index its content.</li>
+              <li><strong>Batch Delete:</strong> Use checkboxes + "Select all" to delete multiple documents at once.</li>
+              <li><strong>Re-embed All:</strong> After changing the embedding model, click to regenerate all embeddings without re-uploading.</li>
+              <li><strong>Retry:</strong> If processing failed (VPN/network issue), click Retry on the failed document.</li>
+              <li><strong>Re-upload:</strong> Same filename replaces the old version automatically.</li>
+              <li><strong>Status:</strong> "processing" auto-refreshes every 3 seconds until "ready".</li>
+            </ul>
+          </div>
+
+          <div class="help-section admin-only" style="display:none;">
+            <h3>Admin — Chat Logs</h3>
+            <ul>
+              <li>View all chats from all users — even after users clear their own conversations.</li>
+              <li>Click a conversation to expand and see all messages.</li>
+              <li>Export as CSV for analysis (FAQ identification, training needs).</li>
+              <li>Clear All Logs permanently removes all history (with confirmation).</li>
+            </ul>
+          </div>
+
+          <div class="help-section admin-only" style="display:none;">
+            <h3>Admin — Settings</h3>
+            <ul>
+              <li><strong>AI Configuration (Tech Admin only):</strong> LLM provider, API key, model, embedding model, temperature, max chunks, similarity threshold, streaming.</li>
+              <li><strong>System Prompt (Tech Admin only):</strong> Controls how the AI responds, formatting, conflict handling, citations.</li>
+              <li><strong>Suggested Prompts:</strong> Up to 10 prompts shown as cards on empty chat screens.</li>
+              <li><strong>User Management:</strong> Create users (username + display name + password + role). Change roles. Remove users.</li>
+              <li><strong>Chat Usage Chart:</strong> Bar chart showing messages per user, with date range selector.</li>
+            </ul>
+          </div>
+
+          <div class="help-section admin-only" style="display:none;">
+            <h3>Admin — User Roles</h3>
+            <ul>
+              <li><strong>User:</strong> Chat only.</li>
+              <li><strong>Admin:</strong> Chat + Documents + Chat Logs + Admin (except AI config/prompt).</li>
+              <li><strong>Tech Admin:</strong> Everything including AI configuration and system prompt.</li>
+            </ul>
+            <p>Tech Admins can promote/demote anyone. Admins can only toggle between User and Admin. Users cannot change roles.</p>
+          </div>
+
+          <div class="help-section admin-only" style="display:none;">
+            <h3>Admin — Troubleshooting</h3>
+            <ul>
+              <li><strong>"I couldn't find that information"</strong> — Document may not be uploaded, or question phrasing is too different. Rephrase or check document status.</li>
+              <li><strong>Document "error" + "fetch failed"</strong> — Network/VPN blocking external API. Disconnect VPN, then Retry.</li>
+              <li><strong>Wrong page numbers</strong> — Re-embed the document to regenerate page-aware chunks.</li>
+              <li><strong>Slow responses</strong> — Enable streaming. Use a faster model (gpt-4o-mini).</li>
+              <li><strong>URL add failing on deployed app</strong> — Check server can reach external sites. Browser cache may serve old JS — bump version or hard refresh.</li>
+              <li><strong>Session lost after restart</strong> — Expected. Sessions are in memory. Users re-login.</li>
+            </ul>
+          </div>
+
+          <div class="help-section admin-only" style="display:none;">
+            <h3>Admin — Data & Backup</h3>
+            <ul>
+              <li><strong>Database:</strong> <code>data/chatbot.db</code> — all data (users, embeddings, config, logs).</li>
+              <li><strong>Files:</strong> <code>uploads/</code> — original uploaded documents.</li>
+              <li><strong>Backup:</strong> Copy both to preserve everything.</li>
+              <li><strong>Deploy:</strong> Copy project folder, run <code>npm install</code>, start with <code>pm2</code> or <code>node src/index.js</code>.</li>
             </ul>
           </div>
 
@@ -545,7 +506,7 @@
           <button class="mobile-nav-btn admin-only" data-mview="documents">Documents</button>
           <button class="mobile-nav-btn admin-only" data-mview="chat-logs">Chat Logs</button>
           <button class="mobile-nav-btn admin-only" data-mview="admin">Admin</button>
-          <button class="mobile-nav-btn admin-only" data-mview="help">Help</button>
+          <button class="mobile-nav-btn" data-mview="help">Help</button>
         </nav>
         <div class="mobile-chats-section">
           <div class="mobile-chats-header">
@@ -559,8 +520,35 @@
         </div>
         <div class="mobile-drawer-footer">
           <span id="mobile-username" class="username"></span>
+          <button id="mobile-change-pw" class="btn btn-ghost btn-sm">Password</button>
           <button id="mobile-logout" class="btn btn-ghost btn-sm">Logout</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="pw-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Change Password</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <form id="pw-form">
+          <div class="form-group">
+            <label>Current Password</label>
+            <input type="password" id="pw-current" required placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input type="password" id="pw-new" required placeholder="Min 8 characters" minlength="8">
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input type="password" id="pw-confirm" required placeholder="••••••••">
+          </div>
+          <button type="submit" class="btn btn-primary btn-full">Change Password</button>
+        </form>
       </div>
     </div>
 
@@ -594,6 +582,6 @@
     <div id="toast-container" class="toast-container"></div>
   </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=2.5"></script>
 </body>
 </html>

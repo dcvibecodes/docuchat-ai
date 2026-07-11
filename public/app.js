@@ -62,11 +62,11 @@
   }
 
   // ── Screens ──
-  function showAuth() { $('auth-screen').classList.add('active'); $('main-app').classList.remove('active'); document.body.classList.remove('is-admin'); state.user = null; }
+  function showAuth() { $('auth-screen').classList.add('active'); $('main-app').classList.remove('active'); document.body.classList.remove('is-admin'); document.body.classList.remove('is-techadmin'); state.user = null; }
   function showApp() { $('auth-screen').classList.remove('active'); $('main-app').classList.add('active'); $('main-app').style.display = 'flex'; }
 
   function switchView(name) {
-    if ((name === 'documents' || name === 'admin' || name === 'help' || name === 'chat-logs') && state.user?.role !== 'admin') return;
+    if ((name === 'documents' || name === 'admin' || name === 'chat-logs') && state.user?.role === 'user') return;
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     $(name + '-view').classList.add('active');
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -92,9 +92,10 @@
   }
   async function initApp() {
     showApp();
-    try { state.user = await api.get('/auth/profile'); $('username-display').textContent = state.user.username; if (state.user.role === 'admin') document.body.classList.add('is-admin'); else document.body.classList.remove('is-admin'); }
+    try { state.user = await api.get('/auth/profile'); $('username-display').textContent = state.user.username; if (state.user.role === 'admin' || state.user.role === 'techadmin') document.body.classList.add('is-admin'); else document.body.classList.remove('is-admin'); if (state.user.role === 'techadmin') document.body.classList.add('is-techadmin'); else document.body.classList.remove('is-techadmin'); }
     catch { showAuth(); return; }
     await loadConversations();
+    loadSuggestedPromptsChat();
   }
 
   // ── Conversations ──
@@ -112,11 +113,11 @@
       state.currentConversation = await api.get('/chat/conversations/'+id);
       $('current-chat-title').textContent = state.currentConversation.title;
       state.messages = await api.get('/chat/conversations/'+id+'/messages');
-      renderConvos(); renderMessages(); updatePinBtn();
+      renderConvos(); renderMessages(true); updatePinBtn();
     } catch(err) { toast(err.message, 'error'); }
   }
   async function newChat() {
-    try { const c = await api.post('/chat/conversations', {title:'New Conversation'}); state.conversations.unshift(c); state.currentConversation = c; state.messages = []; renderConvos(); renderMessages(); $('current-chat-title').textContent = c.title; await pruneOldChats(); }
+    try { const c = await api.post('/chat/conversations', {title:'New Conversation'}); state.conversations.unshift(c); state.currentConversation = c; state.messages = []; renderConvos(); renderMessages(); $('current-chat-title').textContent = c.title; loadSuggestedPromptsChat(); await pruneOldChats(); }
     catch(err) { toast(err.message, 'error'); }
   }
   async function pruneOldChats() {
@@ -156,11 +157,11 @@
   }
 
   // ── Messages ──
-  function renderMessages() {
+  function renderMessages(scroll) {
     const el = $('chat-messages');
     if (!state.messages.length) { el.innerHTML = ''; return; }
     el.innerHTML = state.messages.map(msgHtml).join('');
-    el.scrollTop = el.scrollHeight;
+    if (scroll) el.scrollTop = el.scrollHeight;
   }
   function msgHtml(m) {
     const isUser = m.role === 'user';
@@ -178,7 +179,7 @@
     if (!msg || state.isGenerating) return;
     if (!state.currentConversation) await newChat();
     state.messages.push({id:'t'+Date.now(), role:'user', content:msg});
-    renderMessages(); inp.value=''; inp.style.height='auto';
+    renderMessages(true); inp.value=''; inp.style.height='auto';
     state.isGenerating = true;
     $('typing-indicator').classList.remove('hidden');
     $('send-btn').disabled = true;
@@ -188,7 +189,7 @@
       const res = await fetch('/api/chat/conversations/'+state.currentConversation.id+'/messages?stream=true', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body:JSON.stringify({message:msg}), signal:state.abortController.signal });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message||'Failed'); }
       const aMsg = {id:'s'+Date.now(), role:'assistant', content:'', citations:[]};
-      state.messages.push(aMsg); renderMessages();
+      state.messages.push(aMsg); renderMessages(true);
       const reader = res.body.getReader(); const dec = new TextDecoder(); let full='';
       while (true) {
         const {done,value} = await reader.read(); if (done) break;
@@ -201,9 +202,9 @@
     } catch(err) { if(err.name!=='AbortError') toast(err.message,'error'); }
     finally { state.isGenerating=false; $('typing-indicator').classList.add('hidden'); $('send-btn').disabled=false; $('stop-btn').classList.add('hidden'); }
   }
-  function updateLast(text) { const msgs=document.querySelectorAll('.message.assistant'); const last=msgs[msgs.length-1]; if(last) last.querySelector('.message-body').innerHTML=md(text); $('chat-messages').scrollTop=$('chat-messages').scrollHeight; }
+  function updateLast(text) { const msgs=document.querySelectorAll('.message.assistant'); const last=msgs[msgs.length-1]; if(last) last.querySelector('.message-body').innerHTML=md(text); }
   function stopGen() { if(state.abortController){state.abortController.abort();state.abortController=null;} }
-  async function regen() { if(!state.currentConversation||state.isGenerating) return; state.isGenerating=true; $('typing-indicator').classList.remove('hidden'); try { const r=await api.post('/chat/conversations/'+state.currentConversation.id+'/regenerate'); const i=state.messages.length-1; if(state.messages[i]?.role==='assistant') state.messages[i]={...r,citations:r.citations?JSON.parse(r.citations):[]}; renderMessages(); } catch(err){toast(err.message,'error');} finally{state.isGenerating=false;$('typing-indicator').classList.add('hidden');} }
+  async function regen() { if(!state.currentConversation||state.isGenerating) return; state.isGenerating=true; $('typing-indicator').classList.remove('hidden'); try { const r=await api.post('/chat/conversations/'+state.currentConversation.id+'/regenerate'); const i=state.messages.length-1; if(state.messages[i]?.role==='assistant') state.messages[i]={...r,citations:r.citations?(typeof r.citations==='string'?JSON.parse(r.citations):r.citations):[]}; renderMessages(); } catch(err){toast(err.message,'error');} finally{state.isGenerating=false;$('typing-indicator').classList.add('hidden');} }
   function copyMsg(id) { const m=state.messages.find(x=>x.id===id); if(m) navigator.clipboard.writeText(m.content).then(()=>toast('Copied','success')); }
 
   // ── Documents ──
@@ -308,14 +309,117 @@
   async function loadAdminData() {
     try {
       const stats=await api.get('/admin/stats'); $('admin-stats').innerHTML=[{v:stats.users,l:'Users'},{v:stats.documents,l:'Docs'},{v:fmtBytes(stats.totalStorage),l:'Storage'},{v:stats.conversations,l:'Chats'},{v:stats.messages,l:'Messages'},{v:stats.chunks,l:'Chunks'}].map(s=>'<div class="stat-card"><div class="stat-value">'+s.v+'</div><div class="stat-label">'+s.l+'</div></div>').join('');
+      await loadChatChart();
+      await loadSuggestedPromptsAdmin();
       const config=await api.get('/admin/config'); fillConfig(config);
       const pd=await api.get('/admin/config/prompt'); $('cfg-system-prompt').value=pd.prompt;
       await loadUsers();
     } catch(err){toast(err.message,'error');}
   }
+
+  async function loadChatChart() {
+    const days = $('chart-range')?.value || '30';
+    try {
+      const rows = await api.get('/admin/chat-logs/stats?days=' + days);
+      const el = $('chat-chart');
+      if (!rows.length) { el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-faint);font-size:0.72rem;">No chat activity in this period.</div>'; return; }
+      const max = Math.max(...rows.map(r => r.count));
+      el.innerHTML = rows.map(r => {
+        const pct = Math.round((r.count / max) * 100);
+        return `<div class="chart-bar-row"><span class="chart-bar-label">${esc(r.username || 'unknown')}</span><div class="chart-bar-track"><div class="chart-bar-fill" style="width:${pct}%"></div></div><span class="chart-bar-value">${r.count}</span></div>`;
+      }).join('');
+    } catch(err) { console.error(err); }
+  }
+
+  // Suggested Prompts
+  let suggestedPrompts = [];
+  async function loadSuggestedPromptsAdmin() {
+    try {
+      suggestedPrompts = await api.get('/admin/config/suggested-prompts');
+      renderSuggestedPromptsAdmin();
+    } catch(e) {}
+  }
+  function renderSuggestedPromptsAdmin() {
+    const el = $('suggested-prompts-list');
+    if (!el) return;
+    el.innerHTML = suggestedPrompts.map((p, i) => `<div class="suggested-prompt-item" draggable="true" data-idx="${i}"><span class="drag-handle">⠿</span><input type="text" class="suggested-prompt-input" value="${esc(p)}" data-idx="${i}"><button data-action="remove-prompt" data-idx="${i}">Remove</button></div>`).join('') || '<div style="color:var(--text-faint);font-size:0.7rem;">No prompts yet.</div>';
+    // Hide add row if at max
+    const addRow = $('suggested-prompt-add-row');
+    if (addRow) addRow.style.display = suggestedPrompts.length >= 10 ? 'none' : 'flex';
+    // Attach drag events
+    el.querySelectorAll('.suggested-prompt-item').forEach(item => {
+      item.addEventListener('dragstart', onDragStart);
+      item.addEventListener('dragover', onDragOver);
+      item.addEventListener('drop', onDrop);
+      item.addEventListener('dragend', onDragEnd);
+    });
+    // Attach edit events
+    el.querySelectorAll('.suggested-prompt-input').forEach(input => {
+      input.addEventListener('change', function() {
+        const idx = parseInt(this.dataset.idx);
+        suggestedPrompts[idx] = this.value.trim();
+        saveSuggestedPrompts();
+      });
+    });
+  }
+
+  let dragIdx = null;
+  function onDragStart(e) { dragIdx = parseInt(e.currentTarget.dataset.idx); e.currentTarget.style.opacity = '0.4'; }
+  function onDragOver(e) { e.preventDefault(); e.currentTarget.style.borderTop = '2px solid var(--accent)'; }
+  function onDrop(e) { e.preventDefault(); e.currentTarget.style.borderTop = ''; const dropIdx = parseInt(e.currentTarget.dataset.idx); if (dragIdx !== null && dragIdx !== dropIdx) { const item = suggestedPrompts.splice(dragIdx, 1)[0]; suggestedPrompts.splice(dropIdx, 0, item); saveSuggestedPrompts(); renderSuggestedPromptsAdmin(); } }
+  function onDragEnd(e) { e.currentTarget.style.opacity = '1'; document.querySelectorAll('.suggested-prompt-item').forEach(el => el.style.borderTop = ''); }
+  async function addSuggestedPrompt() {
+    const input = $('new-prompt-input');
+    const text = input.value.trim();
+    if (!text) return;
+    if (suggestedPrompts.length >= 10) { toast('Maximum 10 prompts', 'error'); return; }
+    suggestedPrompts.push(text);
+    await saveSuggestedPrompts();
+    input.value = '';
+  }
+  async function removeSuggestedPrompt(idx) {
+    suggestedPrompts.splice(idx, 1);
+    await saveSuggestedPrompts();
+  }
+  async function saveSuggestedPrompts() {
+    try { await api.put('/admin/config/suggested-prompts', { prompts: suggestedPrompts }); renderSuggestedPromptsAdmin(); }
+    catch(err) { toast(err.message, 'error'); }
+  }
+  async function loadSuggestedPromptsChat() {
+    try {
+      const prompts = await api.get('/settings/suggested-prompts');
+      if (prompts.length && !state.messages.length) { renderPromptCards(prompts); }
+    } catch(e) {}
+  }
+  function renderPromptCards(prompts) {
+    const el = $('chat-messages');
+    if (state.messages.length) return;
+    el.innerHTML = '<div class="chat-prompt-cards">' + prompts.map(p => `<div class="chat-prompt-card" data-action="send-prompt" data-prompt="${esc(p)}">${esc(p)}</div>`).join('') + '</div>';
+  }
+
   async function loadUsers() {
     const users=await api.get('/admin/users');
-    $('users-list').innerHTML=users.map(u=>{const self=u.id===state.user.id; return '<div class="user-row"><span class="user-email">'+esc(u.username)+' <span style="color:var(--text-faint)">('+esc(u.name||'')+')</span></span><span class="user-role '+(u.role)+'">'+u.role+'</span>'+(self?'<span style="font-size:0.62rem;color:var(--text-faint)">you</span>':'<button class="user-role-btn" data-action="toggle-role" data-uid="'+u.id+'" data-role="'+u.role+'">'+(u.role==='admin'?'Make User':'Make Admin')+'</button><button class="user-delete" data-action="delete-user" data-uid="'+u.id+'">Remove</button>')+'</div>';}).join('');
+    $('users-list').innerHTML=users.map(u=>{
+      const self=u.id===state.user.id;
+      let roleBtn = '';
+      if (!self) {
+        if (state.user.role === 'techadmin') {
+          // Tech admin can cycle through all roles
+          const nextRole = u.role==='user'?'admin':u.role==='admin'?'techadmin':'user';
+          const label = u.role==='user'?'Make Admin':u.role==='admin'?'Make Tech Admin':'Make User';
+          roleBtn = '<button class="user-role-btn" data-action="toggle-role" data-uid="'+u.id+'" data-role="'+nextRole+'">'+label+'</button>';
+        } else {
+          // Regular admin can only toggle user/admin (not techadmin)
+          if (u.role !== 'techadmin') {
+            const nextRole = u.role==='user'?'admin':'user';
+            const label = u.role==='user'?'Make Admin':'Make User';
+            roleBtn = '<button class="user-role-btn" data-action="toggle-role" data-uid="'+u.id+'" data-role="'+nextRole+'">'+label+'</button>';
+          }
+        }
+      }
+      const deleteBtn = self?'<span style="font-size:0.62rem;color:var(--text-faint)">you</span>':(u.role==='techadmin'&&state.user.role!=='techadmin'?'':'<button class="user-delete" data-action="delete-user" data-uid="'+u.id+'">Remove</button>');
+      return '<div class="user-row"><span class="user-email">'+esc(u.username)+' <span style="color:var(--text-faint)">('+esc(u.name||'')+')</span></span><span class="user-role '+u.role+'">'+u.role+'</span>'+roleBtn+deleteBtn+'</div>';
+    }).join('');
   }
   function fillConfig(c) { $('cfg-llm-provider').value=c.llm_provider||'openai'; $('cfg-openai-key').value=c.openai_api_key||''; $('cfg-openai-model').value=c.openai_model||'gpt-4o-mini'; $('cfg-gemini-key').value=c.gemini_api_key||''; $('cfg-gemini-model').value=c.gemini_model||'gemini-1.5-flash'; $('cfg-claude-key').value=c.claude_api_key||''; $('cfg-claude-model').value=c.claude_model||'claude-3-haiku-20240307'; $('cfg-openrouter-key').value=c.openrouter_api_key||''; $('cfg-openrouter-model').value=c.openrouter_model||'openai/gpt-4o-mini'; $('cfg-local-url').value=c.local_llm_url||'http://localhost:11434'; $('cfg-local-model').value=c.local_model||'llama3'; $('cfg-embedding-model').value=c.embedding_model||'text-embedding-3-small'; $('cfg-temperature').value=c.temperature||'0.1'; $('cfg-temp-value').textContent=c.temperature||'0.1'; $('cfg-max-chunks').value=c.max_retrieved_chunks||'5'; $('cfg-threshold').value=c.similarity_threshold||'0.7'; $('cfg-threshold-value').textContent=c.similarity_threshold||'0.7'; $('cfg-streaming').checked=c.streaming_enabled!=='0'; toggleProvider(c.llm_provider||'openai'); }
   function toggleProvider(p) { document.querySelectorAll('.provider-fields').forEach(el=>el.classList.add('hidden')); const t=$('cfg-'+p+'-fields'); if(t) t.classList.remove('hidden'); }
@@ -363,7 +467,7 @@
   async function createUser() { const username=$('new-user-username').value.trim(),name=$('new-user-name').value.trim(),password=$('new-user-password').value.trim(),role=$('new-user-role').value; if(!username||!name||!password){toast('All fields required','error');return;} try{await api.post('/admin/users',{username,name,password,role});toast('Created','success');$('new-user-username').value='';$('new-user-name').value='';$('new-user-password').value='';await loadUsers();}catch(err){toast(err.message,'error');} }
 
   function openModal() { $('upload-modal').classList.remove('hidden'); }
-  function closeModal() { $('upload-modal').classList.add('hidden'); }
+  function closeModal() { $('upload-modal').classList.add('hidden'); $('pw-modal').classList.add('hidden'); }
   function openDrawer() { $('mobile-drawer').classList.add('open'); renderMobileChats(); $('mobile-username').textContent = state.user?.username || ''; }
   function closeDrawer() { $('mobile-drawer').classList.remove('open'); }
   function renderMobileChats() {
@@ -393,7 +497,9 @@
     else if (action === 'copy') copyMsg(btn.dataset.mid);
     else if (action === 'regen') regen();
     else if (action === 'expand-log') expandChatLog(btn.dataset.logcid, btn);
-    else if (action === 'toggle-role') { const newRole = btn.dataset.role==='admin'?'user':'admin'; api.patch('/admin/users/'+btn.dataset.uid+'/role',{role:newRole}).then(()=>{toast('Changed','success');loadUsers();}).catch(err=>toast(err.message,'error')); }
+    else if (action === 'remove-prompt') { removeSuggestedPrompt(parseInt(btn.dataset.idx)); }
+    else if (action === 'send-prompt') { $('chat-input').value = btn.dataset.prompt; $('chat-input').focus(); }
+    else if (action === 'toggle-role') { api.patch('/admin/users/'+btn.dataset.uid+'/role',{role:btn.dataset.role}).then(()=>{toast('Changed','success');loadUsers();}).catch(err=>toast(err.message,'error')); }
     else if (action === 'delete-user') { api.del('/admin/users/'+btn.dataset.uid).then(()=>{toast('Removed','success');loadUsers();}).catch(err=>toast(err.message,'error')); }
   });
 
@@ -402,6 +508,13 @@
     $('login-form').addEventListener('submit', handleLogin);
     $('setup-form').addEventListener('submit', handleSetup);
     $('logout-btn').addEventListener('click', async()=>{try{await api.post('/auth/logout');}catch{}showAuth();checkSetup();});
+    $('change-pw-btn').addEventListener('click', ()=>{ $('pw-modal').classList.remove('hidden'); });
+    $('pw-form').addEventListener('submit', async(e)=>{
+      e.preventDefault();
+      const cur=$('pw-current').value, nw=$('pw-new').value, conf=$('pw-confirm').value;
+      if(nw!==conf){toast('Passwords do not match','error');return;}
+      try{await api.post('/auth/change-password',{currentPassword:cur,newPassword:nw});toast('Password changed','success');closeModal();$('pw-form').reset();}catch(err){toast(err.message,'error');}
+    });
     document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
     $('new-chat-btn').addEventListener('click', newChat);
     $('clear-chats-btn').addEventListener('click', clearAllChats);
@@ -412,6 +525,7 @@
     $('mobile-new-chat')?.addEventListener('click', ()=>{ newChat(); closeDrawer(); });
     $('mobile-clear-chats')?.addEventListener('click', clearAllChats);
     $('mobile-logout')?.addEventListener('click', async()=>{try{await api.post('/auth/logout');}catch{}showAuth();checkSetup();closeDrawer();});
+    $('mobile-change-pw')?.addEventListener('click', ()=>{ $('pw-modal').classList.remove('hidden'); closeDrawer(); });
     document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.addEventListener('click',()=>{ switchView(b.dataset.mview); closeDrawer(); document.querySelectorAll('.mobile-nav-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); }));
     $('chat-form').addEventListener('submit', sendMsg);
     $('chat-input').addEventListener('keydown', e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});
@@ -437,12 +551,23 @@
     $('save-config-btn')?.addEventListener('click', saveConfig);
     $('save-prompt-btn')?.addEventListener('click', savePrompt);
     $('create-user-btn')?.addEventListener('click', createUser);
+    $('add-prompt-btn')?.addEventListener('click', addSuggestedPrompt);
+    $('new-prompt-input')?.addEventListener('keydown', function(e){ if(e.key==='Enter'){e.preventDefault();addSuggestedPrompt();} });
     $('clear-logs-btn')?.addEventListener('click', clearChatLogs);
     $('chat-logs-search')?.addEventListener('input', function(){ loadChatLogs(this.value); });
     $('cfg-llm-provider')?.addEventListener('change', e=>toggleProvider(e.target.value));
+    $('chart-range')?.addEventListener('change', loadChatChart);
     $('cfg-temperature')?.addEventListener('input', e=>{$('cfg-temp-value').textContent=e.target.value;});
     $('cfg-threshold')?.addEventListener('input', e=>{$('cfg-threshold-value').textContent=e.target.value;});
     document.querySelectorAll('.modal-close,.modal-overlay').forEach(el=>el.addEventListener('click',closeModal));
+
+    // Keyboard shortcuts (using Alt+ to avoid browser conflicts)
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+      if (e.altKey && e.key === 'n') { e.preventDefault(); newChat(); }
+      if (e.altKey && e.key === 'x') { e.preventDefault(); clearAllChats(); }
+      if (e.key === 'Escape') { closeModal(); closeDrawer(); }
+    });
 
     // Boot
     api.get('/auth/profile').then(p=>{state.user=p;initApp();}).catch(()=>{showAuth();checkSetup();});

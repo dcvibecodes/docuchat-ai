@@ -14,7 +14,7 @@ class AuthService {
       throw new AuthorizationError('Admin already exists. Setup is disabled.');
     }
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const user = User.create({ username, name, passwordHash, role: 'admin' });
+    const user = User.create({ username, name, passwordHash, role: 'techadmin' });
     Settings.createDefault(user.id);
     KnowledgeBase.create({ userId: user.id, name: 'Documents', description: 'All uploaded documents' });
     logger.info('Admin account created during setup', { userId: user.id, username });
@@ -25,8 +25,9 @@ class AuthService {
     const existing = User.findByUsername(username);
     if (existing) throw new ConflictError('Username is already taken');
 
-    if (role !== 'user' && role !== 'admin') {
-      throw new ValidationError('Role must be "user" or "admin"');
+    const validRoles = ['user', 'admin', 'techadmin'];
+    if (!validRoles.includes(role)) {
+      throw new ValidationError('Role must be "user", "admin", or "techadmin"');
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
@@ -51,13 +52,24 @@ class AuthService {
     if (userId === requestingUserId) {
       throw new ValidationError('Cannot change your own role');
     }
-    if (newRole !== 'user' && newRole !== 'admin') {
-      throw new ValidationError('Role must be "user" or "admin"');
+    const validRoles = ['user', 'admin', 'techadmin'];
+    if (!validRoles.includes(newRole)) {
+      throw new ValidationError('Role must be "user", "admin", or "techadmin"');
     }
-    const user = User.findById(userId);
-    if (!user) throw new ValidationError('User not found');
+    const requestingUser = User.findById(requestingUserId);
+    const targetUser = User.findById(userId);
+    if (!targetUser) throw new ValidationError('User not found');
+
+    // Only techadmin can promote/demote to techadmin
+    if (newRole === 'techadmin' && requestingUser.role !== 'techadmin') {
+      throw new AuthorizationError('Only tech admins can assign tech admin role');
+    }
+    if (targetUser.role === 'techadmin' && requestingUser.role !== 'techadmin') {
+      throw new AuthorizationError('Only tech admins can change another tech admin\'s role');
+    }
+
     User.updateRole(userId, newRole);
-    logger.info('User role changed', { userId, from: user.role, to: newRole });
+    logger.info('User role changed', { userId, from: targetUser.role, to: newRole });
   }
 
   static async login({ username, password }) {
@@ -70,6 +82,23 @@ class AuthService {
     User.updateLastLogin(user.id);
     logger.info('User logged in', { userId: user.id, username });
     return user;
+  }
+
+  static async changePassword(userId, { currentPassword, newPassword }) {
+    const user = User.findById(userId);
+    if (!user) throw new ValidationError('User not found');
+
+    const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!validPassword) throw new AuthenticationError('Current password is incorrect');
+
+    if (!newPassword || newPassword.length < 8) {
+      throw new ValidationError('New password must be at least 8 characters');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    const db = require('../database/db');
+    db.run('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userId]);
+    logger.info('Password changed', { userId });
   }
 
   static getProfile(userId) {

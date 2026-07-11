@@ -7,5 +7,6 @@ router.use(requireAuth);
 
 router.get('/', SettingsController.get);
 router.patch('/', SettingsController.update);
+router.get('/suggested-prompts', SettingsController.getSuggestedPrompts);
 
 module.exports = router;

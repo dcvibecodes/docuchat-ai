@@ -1,4 +1,5 @@
 const Settings = require('../models/Settings');
+const SystemConfig = require('../models/SystemConfig');
 
 class SettingsController {
   static get(req, res, next) {
@@ -20,6 +21,14 @@ class SettingsController {
     } catch (err) {
       next(err);
     }
+  }
+
+  static getSuggestedPrompts(req, res, next) {
+    try {
+      const raw = SystemConfig.get('suggested_prompts');
+      const prompts = raw ? JSON.parse(raw) : [];
+      res.json(prompts);
+    } catch (err) { next(err); }
   }
 }
 

@@ -13,6 +13,7 @@ router.post('/setup', AuthController.setup);
 // Login/logout
 router.post('/login', validateLogin, AuthController.login);
 router.post('/logout', requireAuth, AuthController.logout);
+router.post('/change-password', requireAuth, AuthController.changePassword);
 router.get('/profile', requireAuth, AuthController.getProfile);
 
 module.exports = router;

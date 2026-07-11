@@ -169,6 +169,29 @@ class AdminController {
   }
 
   // Chat Logs
+  static getChatStats(req, res, next) {
+    try {
+      const { days = 30 } = req.query;
+      const d = parseInt(days);
+      let dateFilter;
+      if (d === 2) {
+        // Yesterday
+        dateFilter = "date(created_at) = date('now', '-1 day')";
+      } else if (d === 1) {
+        // Today
+        dateFilter = "date(created_at) = date('now')";
+      } else {
+        dateFilter = `created_at >= datetime('now', '-${d} days')`;
+      }
+      const rows = db.all(`
+        SELECT username, COUNT(*) as count FROM chat_logs
+        WHERE role = 'user' AND ${dateFilter}
+        GROUP BY username ORDER BY count DESC
+      `);
+      res.json(rows);
+    } catch (err) { next(err); }
+  }
+
   static getChatLogs(req, res, next) {
     try {
       const { limit, offset, user_id, search } = req.query;
@@ -216,6 +239,26 @@ class AdminController {
   static clearChatLogs(req, res, next) {
     try {
       ChatLog.clearAll();
+      res.json({ success: true });
+    } catch (err) { next(err); }
+  }
+
+  // Suggested Prompts
+  static getSuggestedPrompts(req, res, next) {
+    try {
+      const raw = SystemConfig.get('suggested_prompts');
+      const prompts = raw ? JSON.parse(raw) : [];
+      res.json(prompts);
+    } catch (err) { next(err); }
+  }
+
+  static setSuggestedPrompts(req, res, next) {
+    try {
+      const { prompts } = req.body;
+      if (!Array.isArray(prompts) || prompts.length > 10) {
+        return res.status(400).json({ error: { message: 'Maximum 10 prompts allowed' } });
+      }
+      SystemConfig.set('suggested_prompts', JSON.stringify(prompts.slice(0, 10)));
       res.json({ success: true });
     } catch (err) { next(err); }
   }

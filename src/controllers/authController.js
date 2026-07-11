@@ -43,6 +43,14 @@ class AuthController {
   static checkSetup(req, res) {
     res.json({ needsSetup: AuthService.needsSetup() });
   }
+
+  static async changePassword(req, res, next) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      await AuthService.changePassword(req.session.userId, { currentPassword, newPassword });
+      res.json({ success: true });
+    } catch (err) { next(err); }
+  }
 }
 
 module.exports = AuthController;
