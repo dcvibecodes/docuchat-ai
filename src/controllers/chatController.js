@@ -255,6 +255,17 @@ class ChatController {
         citations: result.citations
       });
 
+      // Log regenerated response to permanent chat logs
+      ChatLog.log({
+        conversationId: convo.id,
+        conversationTitle: convo.title,
+        userId: req.session.userId,
+        username: req.session.username,
+        role: 'assistant',
+        content: result.content,
+        citations: result.citations
+      });
+
       res.json({
         ...assistantMessage,
         citations: result.citations

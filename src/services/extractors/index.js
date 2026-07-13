@@ -15,6 +15,8 @@ async function extractText(filePath, fileType) {
     case 'xlsx':
     case 'xls':
       return extractExcel(filePath);
+    case 'csv':
+      return extractCsv(filePath);
     case 'url':
       return extractTxt(filePath); // URL content is saved as plain text
     default:
@@ -158,6 +160,15 @@ async function extractExcel(filePath) {
     text: cleanText(sheets.join('\n\n')),
     pageCount: workbook.SheetNames.length,
     metadata: { format: 'excel', sheets: workbook.SheetNames.length }
+  };
+}
+
+async function extractCsv(filePath) {
+  const text = fs.readFileSync(filePath, 'utf-8');
+  return {
+    text: cleanText(text),
+    pageCount: null,
+    metadata: { format: 'csv' }
   };
 }
 

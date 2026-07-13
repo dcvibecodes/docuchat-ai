@@ -103,7 +103,8 @@ class AdminController {
         'embedding_model',
         'temperature', 'max_retrieved_chunks', 'similarity_threshold',
         'streaming_enabled', 'system_prompt',
-        'chunk_size', 'chunk_overlap'
+        'chunk_size', 'chunk_overlap',
+        'sitemap_max_urls'
       ];
 
       const filtered = {};

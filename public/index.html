@@ -19,16 +19,16 @@
         <div class="auth-header">
           <div class="logo">
             <svg width="48" height="48" viewBox="0 0 32 32" fill="none">
-              <rect x="4" y="6" width="24" height="20" rx="6" fill="#1a1a1a"/>
-              <line x1="16" y1="6" x2="16" y2="2" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="16" cy="1.5" r="1.5" fill="#333"/>
+              <rect class="logo-robot-body" x="4" y="6" width="24" height="20" rx="6" fill="#1a1a1a"/>
+              <line class="logo-robot-antenna" x1="16" y1="6" x2="16" y2="2" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+              <circle class="logo-robot-antenna-tip" cx="16" cy="1.5" r="1.5" fill="#333"/>
               <circle cx="11" cy="15" r="2.5" fill="#e0e0e0"/>
               <circle cx="21" cy="15" r="2.5" fill="#e0e0e0"/>
-              <circle cx="11.5" cy="15" r="1" fill="#1a1a1a"/>
-              <circle cx="21.5" cy="15" r="1" fill="#1a1a1a"/>
+              <circle class="logo-robot-pupil" cx="11.5" cy="15" r="1" fill="#1a1a1a"/>
+              <circle class="logo-robot-pupil" cx="21.5" cy="15" r="1" fill="#1a1a1a"/>
               <path d="M11 21 Q16 24 21 21" stroke="#e0e0e0" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-              <rect x="1" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
-              <rect x="28" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+              <rect class="logo-robot-arm" x="1" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+              <rect class="logo-robot-arm" x="28" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
             </svg>
           </div>
           <h1>DocuChat AI</h1>
@@ -76,22 +76,22 @@
       <header class="top-header">
         <div class="top-header-left">
           <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
-            <rect x="4" y="6" width="24" height="20" rx="6" fill="#1a1a1a"/>
-            <line x1="16" y1="6" x2="16" y2="2" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="16" cy="1.5" r="1.5" fill="#333"/>
+            <rect class="logo-robot-body" x="4" y="6" width="24" height="20" rx="6" fill="#1a1a1a"/>
+            <line class="logo-robot-antenna" x1="16" y1="6" x2="16" y2="2" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+            <circle class="logo-robot-antenna-tip" cx="16" cy="1.5" r="1.5" fill="#333"/>
             <circle cx="11" cy="15" r="2.5" fill="#e0e0e0"/>
             <circle cx="21" cy="15" r="2.5" fill="#e0e0e0"/>
-            <circle cx="11.5" cy="15" r="1" fill="#1a1a1a"/>
-            <circle cx="21.5" cy="15" r="1" fill="#1a1a1a"/>
+            <circle class="logo-robot-pupil" cx="11.5" cy="15" r="1" fill="#1a1a1a"/>
+            <circle class="logo-robot-pupil" cx="21.5" cy="15" r="1" fill="#1a1a1a"/>
             <path d="M11 21 Q16 24 21 21" stroke="#e0e0e0" stroke-width="1.5" stroke-linecap="round" fill="none"/>
-            <rect x="1" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
-            <rect x="28" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+            <rect class="logo-robot-arm" x="1" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
+            <rect class="logo-robot-arm" x="28" y="13" width="3" height="6" rx="1.5" fill="#2a2a2a"/>
           </svg>
           <span class="app-title">DocuChat AI</span>
         </div>
         <nav class="top-nav">
           <button class="tab-btn active" data-view="chat">Chat</button>
-          <button class="tab-btn admin-only" data-view="documents">Documents</button>
+          <button class="tab-btn admin-only" data-view="documents">Knowledge</button>
           <button class="tab-btn admin-only" data-view="chat-logs">Chat Logs</button>
           <button class="tab-btn admin-only" data-view="admin">Admin</button>
           <button class="tab-btn" data-view="help">Help</button>
@@ -100,6 +100,17 @@
           <span id="username-display" class="username"></span>
           <button id="change-pw-btn" class="btn btn-ghost btn-sm">Password</button>
           <button id="logout-btn" class="btn btn-ghost btn-sm">Logout</button>
+          <div class="theme-toggle" id="theme-toggle" title="Theme">
+            <button class="theme-option" data-theme="auto" title="Auto (system)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </button>
+            <button class="theme-option" data-theme="light" title="Light">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
+            <button class="theme-option" data-theme="dark" title="Dark">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+          </div>
           <button id="mobile-menu-btn" class="btn-icon mobile-only" title="Menu">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
@@ -125,7 +136,7 @@
             <div class="chat-main-header">
               <h2 id="current-chat-title">New Conversation</h2>
               <div class="chat-main-actions">
-                <span class="shortcut-hint">Alt+N new chat · Esc close</span>
+                <span class="shortcut-hint" id="shortcut-hint-text">Ctrl+Shift+O new chat · Esc close</span>
                 <button id="pin-chat-btn" class="btn-icon" title="Pin">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 2L14.5 3.5l1 1-4.5 4.5H7l-2 2 4.5 2.5L5 18l1 1 4.5-4.5L13 19l2-2v-4l4.5-4.5 1 1L22 8z"/></svg>
                 </button>
@@ -157,7 +168,7 @@
       <div id="documents-view" class="view">
         <div class="documents-container">
           <div class="documents-header">
-            <h2>Documents</h2>
+            <h2>Knowledge Base</h2>
             <div class="documents-actions">
               <button id="reprocess-all-btn" class="btn btn-ghost">Re-embed All</button>
               <button id="upload-btn" class="btn btn-primary">Upload</button>
@@ -168,12 +179,67 @@
             <input type="text" id="url-input" placeholder="https://example.com/page" class="documents-search">
             <button id="add-url-btn" class="btn btn-ghost">Add URL</button>
           </div>
+          <div class="doc-type-hint">
+            <span class="doc-type-hint-label">Supported formats:</span>
+            <span class="doc-type-badge best">PDF</span>
+            <span class="doc-type-badge best">DOCX</span>
+            <span class="doc-type-badge best">Markdown</span>
+            <span class="doc-type-badge">TXT</span>
+            <span class="doc-type-badge">Excel (xlsx/xls)</span>
+            <span class="doc-type-badge">CSV</span>
+            <span class="doc-type-badge">Web URL</span>
+            <br>
+            <span class="doc-type-hint-tip"><svg class="doc-type-tip-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg> PDF, Word, and Markdown work best for SOPs and narrative content. Excel/CSV are better suited for reference data and lookups.</span>
+          </div>
           <div class="documents-list-header">
-            <label class="doc-select-all"><input type="checkbox" id="doc-select-all"> Select all</label>
-            <button id="batch-delete-btn" class="btn btn-ghost hidden" style="color:var(--danger);border-color:var(--danger);">Delete Selected</button>
+            <span class="doc-count-label" id="doc-count-label"></span>
           </div>
           <div id="documents-list" class="documents-list"></div>
           <div id="storage-info" class="storage-info"></div>
+
+          <!-- Sitemap Import (Tech Admin only) -->
+          <div class="sitemap-section techadmin-only" id="sitemap-section">
+            <div class="sitemap-header">
+              <h3>Import from Sitemap</h3>
+              <p class="sitemap-desc">Import multiple pages from a website at once using its sitemap. Enter the sitemap URL or domain to discover available pages.</p>
+            </div>
+            <div class="sitemap-input-row">
+              <input type="text" id="sitemap-url-input" placeholder="https://yourblog.com or https://yourblog.com/sitemap.xml" class="documents-search">
+              <button id="sitemap-discover-btn" class="btn btn-primary">Discover</button>
+            </div>
+            <div id="sitemap-results" class="sitemap-results hidden">
+              <div class="sitemap-summary" id="sitemap-summary"></div>
+              <div class="sitemap-options">
+                <div class="form-group" style="margin-bottom:8px;">
+                  <label>Path filter (optional)</label>
+                  <input type="text" id="sitemap-path-filter" placeholder="/blog/ or /articles/" class="documents-search">
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                  <label>How many to import</label>
+                  <select id="sitemap-limit" class="chart-range-select" style="width:100%;padding:7px 10px;">
+                    <option value="50">First 50</option>
+                    <option value="100" selected>First 100</option>
+                    <option value="250">First 250</option>
+                    <option value="500">First 500</option>
+                    <option value="all">All (up to cap)</option>
+                  </select>
+                </div>
+              </div>
+              <div id="sitemap-preview" class="sitemap-preview"></div>
+              <div class="sitemap-actions">
+                <button id="sitemap-cancel-btn" class="btn btn-ghost">Cancel</button>
+                <button id="sitemap-import-btn" class="btn btn-primary">Start Import</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sitemap hint for non-techadmins -->
+          <div class="sitemap-section admin-only-not-tech" id="sitemap-hint-nontechadmin">
+            <p class="sitemap-restricted-hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              You can add individual URLs above. To import an entire website via sitemap, contact your tech admin.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -317,6 +383,11 @@
                   <span class="toggle-slider"></span>
                 </label>
               </div>
+
+              <div class="form-group techadmin-only" style="margin-top:12px;">
+                <label>Sitemap import URL cap <span style="font-weight:normal;color:var(--text-faint)">(0 = no limit)</span></label>
+                <input type="number" id="cfg-sitemap-max-urls" min="0" value="500">
+              </div>
             </div>
             <button id="save-config-btn" class="btn btn-primary">Save Configuration</button>
           </div>
@@ -376,7 +447,7 @@
           <div class="help-section">
             <h3>Chat Features</h3>
             <ul>
-              <li><strong>New Chat:</strong> Click "+ New" in the sidebar (desktop) or use the hamburger menu (mobile). Keyboard shortcut: Ctrl+N.</li>
+              <li><strong>New Chat:</strong> Click "+ New" in the sidebar (desktop) or use the hamburger menu (mobile). Keyboard shortcut: <span class="shortcut-keys-newchat">Ctrl+Shift+O</span> (Windows) / <span class="shortcut-keys-newchat-mac">⌘⇧O</span> (Mac).</li>
               <li><strong>Pin Chats:</strong> Click the pin icon to keep important conversations at the top of your list.</li>
               <li><strong>Delete Chats:</strong> Click the trash icon to remove a conversation.</li>
               <li><strong>Clear All:</strong> Click "Clear" to remove all your conversations.</li>
@@ -389,12 +460,15 @@
 
           <div class="help-section">
             <h3>Keyboard Shortcuts</h3>
-            <ul>
-              <li><strong>Alt+N</strong> — Start a new chat</li>
-              <li><strong>Alt+X</strong> — Clear all chats</li>
-              <li><strong>Enter</strong> — Send message (Shift+Enter for new line)</li>
-              <li><strong>Escape</strong> — Close any open dialog</li>
-            </ul>
+            <table class="shortcuts-table">
+              <thead><tr><th>Action</th><th>Windows / Linux</th><th>Mac</th></tr></thead>
+              <tbody>
+                <tr><td>New chat</td><td>Ctrl+Shift+O</td><td>⌘⇧O</td></tr>
+                <tr><td>Clear all chats</td><td>Ctrl+Shift+Backspace</td><td>⌘⇧⌫</td></tr>
+                <tr><td>Send message</td><td colspan="2">Enter (Shift+Enter for new line)</td></tr>
+                <tr><td>Close dialog</td><td colspan="2">Escape</td></tr>
+              </tbody>
+            </table>
           </div>
 
           <div class="help-section">
@@ -422,15 +496,28 @@
 
           <!-- Admin Help (admin/techadmin only) -->
           <div class="help-section admin-only" style="display:none;">
-            <h3>Admin — Documents</h3>
+            <h3>Admin — Knowledge Base</h3>
             <ul>
-              <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select multiple files. Supports PDF, DOCX, TXT, Markdown, Excel (.xlsx).</li>
+              <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select multiple files. Supports PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV.</li>
               <li><strong>Add URL:</strong> Paste a public website URL to scrape and index its content.</li>
-              <li><strong>Batch Delete:</strong> Use checkboxes + "Select all" to delete multiple documents at once.</li>
+              <li><strong>Enable/Disable Sources:</strong> Toggle any document or source group on/off. Disabled sources are excluded from chat answers instantly — no re-processing needed. Re-enable anytime.</li>
               <li><strong>Re-embed All:</strong> After changing the embedding model, click to regenerate all embeddings without re-uploading.</li>
               <li><strong>Retry:</strong> If processing failed (VPN/network issue), click Retry on the failed document.</li>
               <li><strong>Re-upload:</strong> Same filename replaces the old version automatically.</li>
               <li><strong>Status:</strong> "processing" auto-refreshes every 3 seconds until "ready".</li>
+              <li><strong>Format guidance:</strong> PDF, Word, and Markdown work best for SOPs and narrative content. Excel/CSV are better for reference data and lookups.</li>
+            </ul>
+          </div>
+
+          <div class="help-section admin-only" style="display:none;">
+            <h3>Admin — Sitemap Import (Tech Admin)</h3>
+            <ul>
+              <li><strong>Import from Sitemap:</strong> Enter a domain or sitemap URL → Discover → choose how many pages to import → Start Import. Pages are imported in the background.</li>
+              <li><strong>Source Groups:</strong> Sitemap imports appear as a single group block in the Knowledge list (e.g., "yourblog.com — 600 pages") rather than individual entries.</li>
+              <li><strong>Sync:</strong> Click the "Sync" button on a source group to detect new pages added to the sitemap since last import. Only new pages are imported.</li>
+              <li><strong>URL Cap:</strong> Set a maximum number of URLs per sitemap import in Admin settings. Set to 0 for no limit.</li>
+              <li><strong>Path filter:</strong> During discovery, filter by URL path (e.g., /articles/) to import only specific sections of a site.</li>
+              <li><strong>Cancel:</strong> Click "Cancel" anytime during the discovery phase to abort without importing.</li>
             </ul>
           </div>
 
@@ -497,13 +584,24 @@
       <div class="mobile-drawer-panel">
         <div class="mobile-drawer-header">
           <span class="mobile-drawer-title">Menu</span>
+          <div class="mobile-theme-toggle" id="mobile-theme-toggle">
+            <button class="theme-option" data-theme="auto" title="Auto">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </button>
+            <button class="theme-option" data-theme="light" title="Light">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </button>
+            <button class="theme-option" data-theme="dark" title="Dark">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+          </div>
           <button id="mobile-drawer-close" class="btn-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
         <nav class="mobile-nav">
           <button class="mobile-nav-btn active" data-mview="chat">Chat</button>
-          <button class="mobile-nav-btn admin-only" data-mview="documents">Documents</button>
+          <button class="mobile-nav-btn admin-only" data-mview="documents">Knowledge</button>
           <button class="mobile-nav-btn admin-only" data-mview="chat-logs">Chat Logs</button>
           <button class="mobile-nav-btn admin-only" data-mview="admin">Admin</button>
           <button class="mobile-nav-btn" data-mview="help">Help</button>

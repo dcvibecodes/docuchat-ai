@@ -132,6 +132,18 @@ async function migrate() {
       metadata TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS source_groups (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'sitemap',
+      url TEXT,
+      doc_count INTEGER DEFAULT 0,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   // Create indexes
@@ -152,7 +164,15 @@ async function migrate() {
     CREATE INDEX IF NOT EXISTS idx_chat_logs_conversation ON chat_logs(conversation_id);
     CREATE INDEX IF NOT EXISTS idx_knowledge_bases_user ON knowledge_bases(user_id);
     CREATE INDEX IF NOT EXISTS idx_error_logs_created ON error_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_source_groups_user ON source_groups(user_id);
   `);
+
+  // Add columns to documents table (safe to re-run — ignores if exists)
+  try { conn.exec('ALTER TABLE documents ADD COLUMN group_id TEXT'); } catch (e) { /* already exists */ }
+  try { conn.exec('ALTER TABLE documents ADD COLUMN enabled INTEGER DEFAULT 1'); } catch (e) { /* already exists */ }
+
+  // Index on new column (must be after ALTER TABLE)
+  try { conn.exec('CREATE INDEX IF NOT EXISTS idx_documents_group ON documents(group_id)'); } catch (e) { /* ignore */ }
 
   saveDatabase();
   logger.info('Database migration completed successfully');

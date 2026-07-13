@@ -3,6 +3,23 @@
 
   const state = { user: null, conversations: [], currentConversation: null, messages: [], documents: [], isGenerating: false, abortController: null, uploadedThisSession: new Set() };
 
+  // ── Theme ──
+  function getSystemTheme() { return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+  function applyTheme(choice) {
+    const effective = choice === 'auto' ? getSystemTheme() : choice;
+    document.documentElement.setAttribute('data-theme', effective);
+  }
+  function initTheme() {
+    const saved = localStorage.getItem('docuchat-theme') || 'auto';
+    applyTheme(saved);
+    // Listen for system theme changes when in auto mode
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if ((localStorage.getItem('docuchat-theme') || 'auto') === 'auto') applyTheme('auto');
+    });
+    return saved;
+  }
+  const currentTheme = initTheme();
+
   // ── API ──
   const api = {
     async request(path, opts = {}) {
@@ -74,6 +91,7 @@
     if (name === 'documents') loadDocuments();
     if (name === 'admin') loadAdminData();
     if (name === 'chat-logs') loadChatLogs();
+    if (name === 'chat' && !state.messages.length) loadSuggestedPromptsChat();
   }
 
   // ── Auth ──
@@ -117,6 +135,11 @@
     } catch(err) { toast(err.message, 'error'); }
   }
   async function newChat() {
+    // Prevent creating multiple blank conversations — if current chat has no messages, just focus it
+    if (state.currentConversation && state.messages.length === 0) {
+      $('chat-input')?.focus();
+      return;
+    }
     try { const c = await api.post('/chat/conversations', {title:'New Conversation'}); state.conversations.unshift(c); state.currentConversation = c; state.messages = []; renderConvos(); renderMessages(); $('current-chat-title').textContent = c.title; loadSuggestedPromptsChat(); await pruneOldChats(); }
     catch(err) { toast(err.message, 'error'); }
   }
@@ -209,43 +232,73 @@
 
   // ── Documents ──
   let docPoll = null;
-  async function loadDocuments() { try { state.documents = await api.get('/documents'); renderDocs(); startDocPoll(); } catch(err){toast(err.message,'error');} }
+  let sourceGroups = [];
+  async function loadDocuments() {
+    try {
+      state.documents = await api.get('/documents');
+      try { sourceGroups = await api.get('/documents/groups'); } catch { sourceGroups = []; }
+      renderDocs();
+      startDocPoll();
+    } catch(err){toast(err.message,'error');}
+  }
   function startDocPoll() { if(state.documents.some(d=>d.status==='processing')){if(!docPoll) docPoll=setInterval(async()=>{try{state.documents=await api.get('/documents');renderDocs();if(!state.documents.some(d=>d.status==='processing')){clearInterval(docPoll);docPoll=null;}}catch{}},3000);}else{if(docPoll){clearInterval(docPoll);docPoll=null;}} }
   function renderDocs(filter) {
     const search = filter !== undefined ? filter : ($('doc-search')?.value?.toLowerCase()||'');
-    const filtered = state.documents.filter(d => !search || d.original_name.toLowerCase().includes(search));
     const container = $('documents-list');
-    if (!filtered.length) { container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-faint);font-size:0.76rem;">'+(search?'No match.':'No documents yet.')+'</div>'; $('storage-info').textContent=''; return; }
-    container.innerHTML = filtered.map(doc => {
+
+    // Separate grouped vs ungrouped documents
+    const groupedDocIds = new Set();
+    for (const g of sourceGroups) {
+      state.documents.filter(d => d.group_id === g.id).forEach(d => groupedDocIds.add(d.id));
+    }
+    const ungrouped = state.documents.filter(d => !groupedDocIds.has(d.id));
+    const filtered = ungrouped.filter(d => !search || d.original_name.toLowerCase().includes(search));
+
+    let html = '';
+
+    // Render source groups first
+    const filteredGroups = sourceGroups.filter(g => !search || g.name.toLowerCase().includes(search));
+    if (filteredGroups.length) {
+      html += filteredGroups.map(g => {
+        const docCount = state.documents.filter(d => d.group_id === g.id).length || g.doc_count;
+        const enabledClass = g.enabled ? '' : ' disabled';
+        const toggleTitle = g.enabled ? 'Disable this source' : 'Enable this source';
+        return '<div class="doc-row source-group-row'+enabledClass+'">'
+          + '<div class="doc-icon url">sitemap</div>'
+          + '<div class="doc-info"><div class="doc-name">'+esc(g.name)+'</div><div class="doc-meta-line"><span>'+docCount+' pages</span><span>'+esc(g.type)+'</span><span>'+fmtDate(g.created_at)+'</span></div></div>'
+          + '<div class="doc-row-actions"><button class="doc-delete-btn" data-action="sync-group" data-gid="'+g.id+'" style="color:var(--primary);border-color:var(--primary)">Sync</button><label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(g.enabled?'checked':'')+' data-action="toggle-group" data-gid="'+g.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-group" data-gid="'+g.id+'">Delete</button></div>'
+          + '</div>';
+      }).join('');
+    }
+
+    // Render ungrouped documents
+    if (!filtered.length && !filteredGroups.length) {
+      container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-faint);font-size:0.76rem;">'+(search?'No match.':'No documents yet.')+'</div>';
+      $('storage-info').textContent='';
+      return;
+    }
+    html += filtered.map(doc => {
       const isNew = state.uploadedThisSession.has(doc.id);
       const badge = isNew?'<span class="doc-badge new">new</span>':doc.status==='processing'?'<span class="doc-badge processing">processing</span>':doc.status==='error'?'<span class="doc-badge error">error</span>':'<span class="doc-badge ready">ready</span>';
       const err = doc.status==='error'&&doc.error_message?'<div class="doc-error">'+esc(doc.error_message)+'</div>':'';
       const retryBtn = doc.status==='error'?'<button class="doc-delete-btn" data-action="retry" data-did="'+doc.id+'" style="color:var(--primary);border-color:var(--primary)">Retry</button>':'';
-      return '<div class="doc-row"><input type="checkbox" class="doc-checkbox" data-did="'+doc.id+'"><div class="doc-icon '+doc.file_type+'">'+doc.file_type+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+'<button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
+      const enabled = doc.enabled !== 0;
+      const enabledClass = enabled ? '' : ' disabled';
+      const toggleTitle = enabled ? 'Disable this source' : 'Enable this source';
+      return '<div class="doc-row'+enabledClass+'"><div class="doc-icon '+doc.file_type+'">'+doc.file_type+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+'<label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(enabled?'checked':'')+' data-action="toggle-doc" data-did="'+doc.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
     }).join('');
+
+    container.innerHTML = html;
     const total = state.documents.reduce((s,d)=>s+d.file_size,0);
-    $('storage-info').textContent = state.documents.length+' documents · '+fmtBytes(total);
-    updateBatchBtn();
+    const enabledCount = state.documents.filter(d => d.enabled !== 0).length;
+    const groupCount = sourceGroups.length;
+    let info = state.documents.length + ' documents';
+    if (groupCount) info += ' · ' + groupCount + ' source group' + (groupCount > 1 ? 's' : '');
+    info += ' · ' + fmtBytes(total);
+    if (enabledCount < state.documents.length) info += ' · ' + enabledCount + ' active';
+    $('storage-info').textContent = info;
   }
 
-  function updateBatchBtn() {
-    const checked = document.querySelectorAll('.doc-checkbox:checked');
-    const btn = $('batch-delete-btn');
-    if (checked.length > 0) { btn.classList.remove('hidden'); btn.textContent = 'Delete Selected ('+checked.length+')'; }
-    else { btn.classList.add('hidden'); }
-  }
-
-  async function batchDelete() {
-    const checked = document.querySelectorAll('.doc-checkbox:checked');
-    if (!checked.length) return;
-    if (!confirm('Delete '+checked.length+' document'+(checked.length>1?'s':'')+'? This cannot be undone.')) return;
-    const ids = Array.from(checked).map(cb => cb.dataset.did);
-    let success = 0;
-    for (const id of ids) { try { await api.del('/documents/'+id); success++; } catch(e){} }
-    toast(success+' document'+(success>1?'s':'')+' deleted', 'success');
-    await loadDocuments();
-    $('doc-select-all').checked = false;
-  }
   async function deleteDoc(id) { if (!confirm('Are you sure you want to delete this document? This will permanently remove it from the knowledge base.')) return; try { await api.del('/documents/'+id); toast('Deleted','success'); state.documents=state.documents.filter(d=>d.id!==id); renderDocs(); } catch(err){toast(err.message,'error');} }
   async function retryDoc(id) { try { await api.post('/documents/'+id+'/reindex'); toast('Retrying...','info'); await loadDocuments(); } catch(err){toast(err.message,'error');} }
 
@@ -273,6 +326,75 @@
     } catch(err) { toast(err.message, 'error'); }
     finally { btn.disabled = false; btn.textContent = 'Add URL'; }
   }
+
+  // ── Sitemap Import ──
+  let sitemapDiscoveredUrl = null;
+  async function sitemapDiscover() {
+    const input = $('sitemap-url-input');
+    const url = input.value.trim();
+    if (!url) { toast('Enter a sitemap URL or domain', 'error'); return; }
+    const btn = $('sitemap-discover-btn');
+    btn.disabled = true; btn.textContent = 'Discovering...';
+    try {
+      const result = await api.post('/documents/sitemap/discover', { url });
+      sitemapDiscoveredUrl = result.sitemapUrl;
+      const capText = result.maxCap ? ' (cap: ' + result.maxCap + ')' : ' (no cap)';
+      $('sitemap-summary').innerHTML = 'Found <strong>' + result.totalUrls + ' URLs</strong> in sitemap' + capText;
+      // Update limit dropdown to reflect cap
+      const sel = $('sitemap-limit');
+      const cap = result.maxCap || Infinity;
+      sel.innerHTML = '';
+      [50, 100, 250, 500, 1000].forEach(n => {
+        if (n <= cap || !result.maxCap) {
+          const opt = document.createElement('option');
+          opt.value = n; opt.textContent = 'First ' + n;
+          if (n === 100) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      });
+      const allOpt = document.createElement('option');
+      allOpt.value = 'all';
+      allOpt.textContent = 'All' + (result.maxCap ? ' (up to ' + result.maxCap + ')' : ' (' + result.totalUrls + ')');
+      sel.appendChild(allOpt);
+      // Show preview
+      const preview = $('sitemap-preview');
+      preview.innerHTML = result.urls.map(u => '<div>' + esc(u) + '</div>').join('') + (result.hasMore ? '<div style="color:var(--text-faint);font-style:italic;">...and more</div>' : '');
+      $('sitemap-results').classList.remove('hidden');
+    } catch(err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Discover'; }
+  }
+  async function sitemapImport() {
+    if (!sitemapDiscoveredUrl) { toast('Discover a sitemap first', 'error'); return; }
+    const limit = $('sitemap-limit').value;
+    const pathFilter = $('sitemap-path-filter').value.trim();
+    const btn = $('sitemap-import-btn');
+    btn.disabled = true; btn.textContent = 'Importing...';
+    try {
+      const result = await api.post('/documents/sitemap/import', { sitemapUrl: sitemapDiscoveredUrl, limit, pathFilter });
+      toast(result.message, 'success');
+      $('sitemap-results').classList.add('hidden');
+      $('sitemap-url-input').value = '';
+      sitemapDiscoveredUrl = null;
+      // Refresh documents list after a delay to show incoming docs
+      setTimeout(() => loadDocuments(), 3000);
+    } catch(err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Start Import'; }
+  }
+
+  async function syncGroup(groupId, btnEl) {
+    btnEl.disabled = true; btnEl.textContent = 'Syncing...';
+    try {
+      const result = await api.post('/documents/groups/'+groupId+'/sync');
+      if (result.newUrls === 0) {
+        toast('Already up to date — no new pages found', 'info');
+      } else {
+        toast('Found ' + result.newUrls + ' new page' + (result.newUrls > 1 ? 's' : '') + '. Importing...', 'success');
+        setTimeout(() => loadDocuments(), 3000);
+      }
+    } catch(err) { toast(err.message, 'error'); }
+    finally { btnEl.disabled = false; btnEl.textContent = 'Sync'; }
+  }
+
   async function uploadDoc(e) {
     e.preventDefault(); const fi=$('file-input'); if(!fi.files.length){toast('Select files','error');return;}
     const progressArea = $('upload-progress');
@@ -388,13 +510,35 @@
   async function loadSuggestedPromptsChat() {
     try {
       const prompts = await api.get('/settings/suggested-prompts');
-      if (prompts.length && !state.messages.length) { renderPromptCards(prompts); }
-    } catch(e) {}
+      renderWelcomeScreen(prompts);
+    } catch(e) {
+      renderWelcomeScreen([]);
+    }
   }
-  function renderPromptCards(prompts) {
+  function getGreeting() {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+  function renderWelcomeScreen(prompts) {
     const el = $('chat-messages');
     if (state.messages.length) return;
-    el.innerHTML = '<div class="chat-prompt-cards">' + prompts.map(p => `<div class="chat-prompt-card" data-action="send-prompt" data-prompt="${esc(p)}">${esc(p)}</div>`).join('') + '</div>';
+    const name = (state.user?.name || state.user?.username || '').split(' ')[0];
+    const greeting = getGreeting() + (name ? ', ' + esc(name) + '!' : '!');
+    let html = '<div class="chat-welcome-container">';
+    html += '<div class="chat-welcome">';
+    html += '<div class="chat-welcome-greeting">' + greeting + '</div>';
+    html += '<div class="chat-welcome-subtitle">How can I help you today?</div>';
+    html += '</div>';
+    if (prompts && prompts.length) {
+      html += '<div class="chat-prompt-cards">' + prompts.map(p => `<div class="chat-prompt-card" data-action="send-prompt" data-prompt="${esc(p)}">${esc(p)}</div>`).join('') + '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  }
+  function renderPromptCards(prompts) {
+    renderWelcomeScreen(prompts);
   }
 
   async function loadUsers() {
@@ -421,9 +565,9 @@
       return '<div class="user-row"><span class="user-email">'+esc(u.username)+' <span style="color:var(--text-faint)">('+esc(u.name||'')+')</span></span><span class="user-role '+u.role+'">'+u.role+'</span>'+roleBtn+deleteBtn+'</div>';
     }).join('');
   }
-  function fillConfig(c) { $('cfg-llm-provider').value=c.llm_provider||'openai'; $('cfg-openai-key').value=c.openai_api_key||''; $('cfg-openai-model').value=c.openai_model||'gpt-4o-mini'; $('cfg-gemini-key').value=c.gemini_api_key||''; $('cfg-gemini-model').value=c.gemini_model||'gemini-1.5-flash'; $('cfg-claude-key').value=c.claude_api_key||''; $('cfg-claude-model').value=c.claude_model||'claude-3-haiku-20240307'; $('cfg-openrouter-key').value=c.openrouter_api_key||''; $('cfg-openrouter-model').value=c.openrouter_model||'openai/gpt-4o-mini'; $('cfg-local-url').value=c.local_llm_url||'http://localhost:11434'; $('cfg-local-model').value=c.local_model||'llama3'; $('cfg-embedding-model').value=c.embedding_model||'text-embedding-3-small'; $('cfg-temperature').value=c.temperature||'0.1'; $('cfg-temp-value').textContent=c.temperature||'0.1'; $('cfg-max-chunks').value=c.max_retrieved_chunks||'5'; $('cfg-threshold').value=c.similarity_threshold||'0.7'; $('cfg-threshold-value').textContent=c.similarity_threshold||'0.7'; $('cfg-streaming').checked=c.streaming_enabled!=='0'; toggleProvider(c.llm_provider||'openai'); }
+  function fillConfig(c) { $('cfg-llm-provider').value=c.llm_provider||'openai'; $('cfg-openai-key').value=c.openai_api_key||''; $('cfg-openai-model').value=c.openai_model||'gpt-4o-mini'; $('cfg-gemini-key').value=c.gemini_api_key||''; $('cfg-gemini-model').value=c.gemini_model||'gemini-1.5-flash'; $('cfg-claude-key').value=c.claude_api_key||''; $('cfg-claude-model').value=c.claude_model||'claude-3-haiku-20240307'; $('cfg-openrouter-key').value=c.openrouter_api_key||''; $('cfg-openrouter-model').value=c.openrouter_model||'openai/gpt-4o-mini'; $('cfg-local-url').value=c.local_llm_url||'http://localhost:11434'; $('cfg-local-model').value=c.local_model||'llama3'; $('cfg-embedding-model').value=c.embedding_model||'text-embedding-3-small'; $('cfg-temperature').value=c.temperature||'0.1'; $('cfg-temp-value').textContent=c.temperature||'0.1'; $('cfg-max-chunks').value=c.max_retrieved_chunks||'5'; $('cfg-threshold').value=c.similarity_threshold||'0.7'; $('cfg-threshold-value').textContent=c.similarity_threshold||'0.7'; $('cfg-streaming').checked=c.streaming_enabled!=='0'; $('cfg-sitemap-max-urls').value=c.sitemap_max_urls||'500'; toggleProvider(c.llm_provider||'openai'); }
   function toggleProvider(p) { document.querySelectorAll('.provider-fields').forEach(el=>el.classList.add('hidden')); const t=$('cfg-'+p+'-fields'); if(t) t.classList.remove('hidden'); }
-  async function saveConfig() { const cfg={llm_provider:$('cfg-llm-provider').value,openai_api_key:$('cfg-openai-key').value,openai_model:$('cfg-openai-model').value,gemini_api_key:$('cfg-gemini-key').value,gemini_model:$('cfg-gemini-model').value,claude_api_key:$('cfg-claude-key').value,claude_model:$('cfg-claude-model').value,openrouter_api_key:$('cfg-openrouter-key').value,openrouter_model:$('cfg-openrouter-model').value,local_llm_url:$('cfg-local-url').value,local_model:$('cfg-local-model').value,embedding_model:$('cfg-embedding-model').value,temperature:$('cfg-temperature').value,max_retrieved_chunks:$('cfg-max-chunks').value,similarity_threshold:$('cfg-threshold').value,streaming_enabled:$('cfg-streaming').checked?'1':'0'}; for(const k of Object.keys(cfg)){if(cfg[k]?.startsWith('•'))delete cfg[k];} try{await api.patch('/admin/config',cfg);toast('Saved','success');}catch(err){toast(err.message,'error');} }
+  async function saveConfig() { const cfg={llm_provider:$('cfg-llm-provider').value,openai_api_key:$('cfg-openai-key').value,openai_model:$('cfg-openai-model').value,gemini_api_key:$('cfg-gemini-key').value,gemini_model:$('cfg-gemini-model').value,claude_api_key:$('cfg-claude-key').value,claude_model:$('cfg-claude-model').value,openrouter_api_key:$('cfg-openrouter-key').value,openrouter_model:$('cfg-openrouter-model').value,local_llm_url:$('cfg-local-url').value,local_model:$('cfg-local-model').value,embedding_model:$('cfg-embedding-model').value,temperature:$('cfg-temperature').value,max_retrieved_chunks:$('cfg-max-chunks').value,similarity_threshold:$('cfg-threshold').value,streaming_enabled:$('cfg-streaming').checked?'1':'0',sitemap_max_urls:$('cfg-sitemap-max-urls').value}; for(const k of Object.keys(cfg)){if(cfg[k]?.startsWith('•'))delete cfg[k];} try{await api.patch('/admin/config',cfg);toast('Saved','success');}catch(err){toast(err.message,'error');} }
   async function savePrompt() { try{await api.put('/admin/config/prompt',{prompt:$('cfg-system-prompt').value});toast('Saved','success');}catch(err){toast(err.message,'error');} }
 
   // CHAT LOGS
@@ -501,6 +645,32 @@
     else if (action === 'send-prompt') { $('chat-input').value = btn.dataset.prompt; $('chat-input').focus(); }
     else if (action === 'toggle-role') { api.patch('/admin/users/'+btn.dataset.uid+'/role',{role:btn.dataset.role}).then(()=>{toast('Changed','success');loadUsers();}).catch(err=>toast(err.message,'error')); }
     else if (action === 'delete-user') { api.del('/admin/users/'+btn.dataset.uid).then(()=>{toast('Removed','success');loadUsers();}).catch(err=>toast(err.message,'error')); }
+    else if (action === 'delete-group') { if(confirm('Delete this source group and all its pages? This cannot be undone.')){api.del('/documents/groups/'+btn.dataset.gid).then(()=>{toast('Group deleted','success');loadDocuments();}).catch(err=>toast(err.message,'error'));} }
+    else if (action === 'sync-group') { syncGroup(btn.dataset.gid, btn); }
+  });
+
+  // Toggle handlers (checkbox change events)
+  document.addEventListener('change', function(e) {
+    if (e.target.dataset.action === 'toggle-group') {
+      const gid = e.target.dataset.gid;
+      api.patch('/documents/groups/'+gid+'/toggle').then(r => {
+        const g = sourceGroups.find(x => x.id === gid);
+        if (g) g.enabled = r.enabled ? 1 : 0;
+        // Also update local doc state
+        state.documents.forEach(d => { if (d.group_id === gid) d.enabled = r.enabled ? 1 : 0; });
+        renderDocs();
+        toast(r.enabled ? 'Source enabled' : 'Source disabled', 'success');
+      }).catch(err => toast(err.message, 'error'));
+    }
+    if (e.target.dataset.action === 'toggle-doc') {
+      const did = e.target.dataset.did;
+      api.patch('/documents/'+did+'/toggle').then(r => {
+        const d = state.documents.find(x => x.id === did);
+        if (d) d.enabled = r.enabled ? 1 : 0;
+        renderDocs();
+        toast(r.enabled ? 'Source enabled' : 'Source disabled', 'success');
+      }).catch(err => toast(err.message, 'error'));
+    }
   });
 
   // ── Init ──
@@ -536,14 +706,16 @@
     $('chat-search').addEventListener('input', async function(){const s=this.value.trim();try{state.conversations=await api.get('/chat/conversations'+(s?'?search='+encodeURIComponent(s):''));renderConvos();}catch{}});
     $('upload-btn')?.addEventListener('click', openModal);
     $('reprocess-all-btn')?.addEventListener('click', reprocessAll);
-    $('batch-delete-btn')?.addEventListener('click', batchDelete);
     $('add-url-btn')?.addEventListener('click', addUrl);
     $('url-input')?.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } });
-    $('doc-select-all')?.addEventListener('change', function() {
-      document.querySelectorAll('.doc-checkbox').forEach(cb => { cb.checked = this.checked; });
-      updateBatchBtn();
+    $('sitemap-discover-btn')?.addEventListener('click', sitemapDiscover);
+    $('sitemap-url-input')?.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); sitemapDiscover(); } });
+    $('sitemap-import-btn')?.addEventListener('click', sitemapImport);
+    $('sitemap-cancel-btn')?.addEventListener('click', function() {
+      $('sitemap-results').classList.add('hidden');
+      $('sitemap-url-input').value = '';
+      sitemapDiscoveredUrl = null;
     });
-    document.addEventListener('change', function(e) { if (e.target.classList.contains('doc-checkbox')) updateBatchBtn(); });
     $('upload-form')?.addEventListener('submit', uploadDoc);
     $('doc-search')?.addEventListener('input', function(){renderDocs(this.value.toLowerCase());});
     const dz=$('dropzone'),fi=$('file-input');
@@ -561,12 +733,38 @@
     $('cfg-threshold')?.addEventListener('input', e=>{$('cfg-threshold-value').textContent=e.target.value;});
     document.querySelectorAll('.modal-close,.modal-overlay').forEach(el=>el.addEventListener('click',closeModal));
 
-    // Keyboard shortcuts (using Alt+ to avoid browser conflicts)
+    // Keyboard shortcuts — Ctrl+Shift on Windows, Cmd+Shift on Mac (matches ChatGPT conventions)
     document.addEventListener('keydown', function(e) {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
-      if (e.altKey && e.key === 'n') { e.preventDefault(); newChat(); }
-      if (e.altKey && e.key === 'x') { e.preventDefault(); clearAllChats(); }
+      const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+      const mod = isMac ? e.metaKey : e.ctrlKey;
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'o') { e.preventDefault(); newChat(); }
+      if (mod && e.shiftKey && e.key === 'Backspace') { e.preventDefault(); clearAllChats(); }
       if (e.key === 'Escape') { closeModal(); closeDrawer(); }
+    });
+
+    // Show shortcut hints based on platform
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+    const newChatBtn = $('new-chat-btn');
+    if (newChatBtn) newChatBtn.title = 'New Chat (' + (isMac ? '⌘⇧O' : 'Ctrl+Shift+O') + ')';
+    const clearChatsBtn = $('clear-chats-btn');
+    if (clearChatsBtn) clearChatsBtn.title = 'Clear All (' + (isMac ? '⌘⇧⌫' : 'Ctrl+Shift+Backspace') + ')';
+    const hintEl = $('shortcut-hint-text');
+    if (hintEl) hintEl.textContent = (isMac ? '⌘⇧O' : 'Ctrl+Shift+O') + ' new chat · Esc close';
+
+    // Theme toggle (desktop + mobile)
+    const saved = localStorage.getItem('docuchat-theme') || 'auto';
+    document.querySelectorAll('#theme-toggle, #mobile-theme-toggle').forEach(toggle => {
+      toggle.querySelector('[data-theme="'+saved+'"]')?.classList.add('active');
+      toggle.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-theme]');
+        if (!btn) return;
+        const choice = btn.dataset.theme;
+        localStorage.setItem('docuchat-theme', choice);
+        applyTheme(choice);
+        // Sync both toggles
+        document.querySelectorAll('#theme-toggle .theme-option, #mobile-theme-toggle .theme-option').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('[data-theme="'+choice+'"]').forEach(b => b.classList.add('active'));
+      });
     });
 
     // Boot

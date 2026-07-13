@@ -1,6 +1,6 @@
-# DocuChat AI v2.2.0
+# DocuChat AI v2.3.0
 
-Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
+Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, import entire sites via sitemap, ask questions, get answers grounded only in your sources with citations.
 
 ## Features
 
@@ -8,19 +8,25 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **RAG-powered chat** — answers only from uploaded document content, never from outside knowledge
 - **Streaming responses** — word-by-word display (toggleable)
 - **Inline citations** — document name, page number, and dates for chronological updates
+- **Personalized greeting** — "Good morning/afternoon/evening, [Name]!" with "How can I help you today?"
 - **Suggested prompts** — up to 10 admin-configured prompts shown as cards on empty chat (drag-to-reorder, editable)
-- **Conversation management** — pin, delete, clear all, 20-chat auto-limit
+- **Conversation management** — pin, delete, clear all, 20-chat auto-limit, no duplicate blank chats
 - **Regenerate & copy** — hover actions on AI responses
-- **Keyboard shortcuts** — Ctrl+N (new chat), Ctrl+Shift+K (clear all), Escape (close dialogs)
+- **Dark theme** — 3-way toggle (Auto/Light/Dark) with system preference detection and localStorage persistence
+- **Keyboard shortcuts** — Ctrl+Shift+O / ⌘⇧O (new chat), Ctrl+Shift+Backspace / ⌘⇧⌫ (clear all), Escape (close dialogs)
 - **Help tab visible to all users** — user-friendly content for regular users, admin-specific sections for admins
 - **Mobile hamburger drawer** — full responsive design, all features accessible on mobile
 - **Password change** — available to all users from header or mobile menu
 
-### Documents
+### Knowledge Base
 - **Multi-file drag-and-drop upload** with progress indicator
 - **Web URL scraping** — paste a URL to scrape and index content as a document source
-- **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), Web URLs
-- **Batch delete with checkboxes** — select all or individual, bulk remove
+- **Sitemap import (Tech Admin)** — discover URLs from a sitemap, preview count, filter by path, choose how many to import, background processing
+- **Source groups** — sitemap imports appear as one collapsible group, not hundreds of individual entries
+- **Sync** — re-scan a sitemap to find and import only new pages since the last import
+- **Enable/disable toggle** — turn any document or source group on/off instantly without re-processing; disabled sources are excluded from chat
+- **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV, Web URLs
+- **Format guidance** — hints in UI: PDF/Word/Markdown best for SOPs; Excel/CSV best for reference data
 - **Re-embed All** — regenerate embeddings without re-uploading after changing embedding model
 - **Re-upload same filename** replaces old version automatically
 - **Retry failed documents** without re-uploading
@@ -30,13 +36,14 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 ### Admin & Configuration
 - **3-tier roles: user, admin, techadmin**
   - User: Chat + Help only
-  - Admin: Chat + Documents + Chat Logs + Admin (except AI config/prompt) + Help
-  - Tech Admin: Everything including AI configuration and system prompt
+  - Admin: Chat + Knowledge + Chat Logs + Admin (except AI config/prompt) + Help
+  - Tech Admin: Everything including AI configuration, system prompt, and sitemap import
 - **AI Configuration** — LLM provider (OpenAI, Gemini, Claude, OpenRouter, Local/Ollama), embedding model, temperature, max chunks, similarity threshold, streaming toggle
+- **Sitemap URL cap** — configurable max URLs per import (0 = no limit), tech admin only
 - **System prompt** — configurable from Admin UI, controls grounding, citations, conflict resolution
 - **User Management** — create users (username + display name + password + role), promote/demote, remove
 - **Chat usage bar chart** with date range selector (today, 7/30/90/180/365 days)
-- **Chat Logs** — view all user conversations, search, expand, export as CSV, clear all
+- **Chat Logs** — view all user conversations (persists even after user deletion), search, expand, export as CSV, clear all
 - **API keys configured in UI** — not in environment variables
 
 ### Infrastructure
@@ -45,6 +52,7 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Sessions** — in-memory with memorystore
 - **Conflict resolution** — latest document/update wins, conflicts reported in responses
 - **No build step** — vanilla JS single-page app frontend
+- **Safe migrations** — new schema changes applied non-destructively on startup; existing data preserved
 
 ## Tech Stack
 
@@ -53,7 +61,7 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Frontend**: Vanilla JS single-page app (no framework, no build step)
 - **Embeddings**: OpenAI `text-embedding-3-small` or `text-embedding-3-large` (configurable)
 - **LLM**: Configurable — OpenAI, Gemini, Claude, OpenRouter, or local Ollama
-- **Web scraping**: Cheerio for URL source extraction
+- **Web scraping**: Cheerio for URL source extraction and sitemap parsing
 
 ## Quick Start
 
@@ -66,9 +74,17 @@ npm start
 Open `http://localhost:3000`. First visit shows a one-time setup screen to create the admin account.
 
 1. Log in → **Admin** tab → set LLM provider and API key
-2. **Documents** tab → upload knowledge documents or add URLs
+2. **Knowledge** tab → upload knowledge documents or add URLs
 3. Wait for "ready" status
 4. **Chat** tab → ask questions
+
+## Upgrading from v2.2.0
+
+No manual steps required. The migration runs automatically on startup and:
+- Creates the `source_groups` table
+- Adds `group_id` and `enabled` columns to existing documents (defaults to enabled)
+- All existing data, documents, embeddings, and conversations are preserved
+- No re-indexing or re-embedding needed
 
 ## Environment Variables
 
@@ -81,13 +97,13 @@ All other configuration (API keys, models, temperature, prompt) is managed throu
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+N` (or `Cmd+N`) | Start a new chat |
-| `Ctrl+Shift+K` | Clear all chats |
-| `Enter` | Send message |
-| `Shift+Enter` | New line in message |
-| `Escape` | Close any open modal/drawer |
+| Action | Windows / Linux | Mac |
+|--------|----------------|-----|
+| New chat | Ctrl+Shift+O | ⌘⇧O |
+| Clear all chats | Ctrl+Shift+Backspace | ⌘⇧⌫ |
+| Send message | Enter | Enter |
+| New line | Shift+Enter | Shift+Enter |
+| Close dialog | Escape | Escape |
 
 ## Project Structure
 
@@ -104,14 +120,15 @@ document-chatbot/
 │   ├── controllers/         # Route handlers
 │   ├── database/            # sql.js connection, migrations, query layer
 │   ├── middleware/           # Auth, validation, upload, error handling
-│   ├── models/              # Data access (User, Document, Chunk, Embedding, ChatLog, etc.)
+│   ├── models/              # Data access (User, Document, SourceGroup, Chunk, Embedding, ChatLog, etc.)
 │   ├── routes/              # Express route definitions
 │   ├── services/            # Business logic
-│   │   ├── extractors/      # PDF, DOCX, TXT, MD, Excel extractors
+│   │   ├── extractors/      # PDF, DOCX, TXT, MD, Excel, CSV extractors
 │   │   ├── webScraper.js    # URL content extraction
+│   │   ├── sitemapService.js # Sitemap discovery, parsing, and auto-detection
 │   │   ├── chunker.js       # Semantic text chunking with page tracking
 │   │   ├── embeddingService.js
-│   │   ├── vectorSearch.js  # Cosine similarity search
+│   │   ├── vectorSearch.js  # Cosine similarity search (filters disabled sources)
 │   │   ├── llmService.js    # Multi-provider LLM client
 │   │   └── ragService.js    # RAG pipeline orchestration
 │   └── utils/
@@ -130,13 +147,24 @@ document-chatbot/
 - `GET /api/auth/profile` — Current user
 - `POST /api/auth/change-password` — Change password
 
-### Documents
+### Documents / Knowledge
 - `GET /api/documents` — List all
 - `POST /api/documents/upload` — Upload file (multipart)
 - `POST /api/documents/import-url` — Add URL source
 - `POST /api/documents/reprocess-all` — Re-embed all documents
 - `POST /api/documents/:id/reindex` — Retry single document
+- `PATCH /api/documents/:id/toggle` — Enable/disable a document
 - `DELETE /api/documents/:id` — Delete document
+
+### Source Groups
+- `GET /api/documents/groups` — List all source groups
+- `POST /api/documents/groups/:id/sync` — Sync: import new pages from sitemap
+- `PATCH /api/documents/groups/:id/toggle` — Enable/disable entire group
+- `DELETE /api/documents/groups/:id` — Delete group and all its pages
+
+### Sitemap Import (Tech Admin)
+- `POST /api/documents/sitemap/discover` — Discover URLs from sitemap or domain
+- `POST /api/documents/sitemap/import` — Start background import of discovered URLs
 
 ### Chat
 - `GET /api/chat/conversations` — List conversations
@@ -174,7 +202,7 @@ document-chatbot/
 2. **Chunk** — Split into overlapping semantic chunks (~800 tokens) with page/section tracking
 3. **Embed** — Each chunk converted to a vector (1536 or 3072 dimensions)
 4. **Store** — Vectors saved with metadata (document, page, heading)
-5. **Query** — User question converted to vector → cosine similarity search
+5. **Query** — User question converted to vector → cosine similarity search (only enabled sources)
 6. **Generate** — Top matching chunks sent to LLM with system prompt → grounded answer with citations
 
 ## Deployment

@@ -13,8 +13,15 @@ async function searchSimilar(queryEmbedding, { userId, knowledgeBaseId, topK, th
   const minThreshold = Math.min(threshold || SystemConfig.getSimilarityThreshold(), 0.5);
 
   // Get ALL embeddings (shared knowledge base — all users query the same documents)
+  // But filter out disabled documents and disabled source groups
   const db = require('../database/db');
-  const embeddings = db.all('SELECT * FROM embeddings');
+  const embeddings = db.all(`
+    SELECT e.* FROM embeddings e
+    JOIN documents d ON e.document_id = d.id
+    LEFT JOIN source_groups sg ON d.group_id = sg.id
+    WHERE (d.enabled IS NULL OR d.enabled = 1)
+    AND (d.group_id IS NULL OR d.group_id = '' OR sg.id IS NULL OR sg.enabled = 1)
+  `);
 
   logger.info('Vector search starting', { embeddingCount: embeddings?.length || 0, threshold: minThreshold, queryVectorLength: queryEmbedding?.vector?.length || 0 });
 
