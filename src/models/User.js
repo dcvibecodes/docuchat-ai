@@ -13,8 +13,8 @@ class User {
   static create({ username, name, passwordHash, role }) {
     const id = uuidv4();
     db.run(
-      'INSERT INTO users (id, email, username, name, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, username.toLowerCase() + '@local', username.toLowerCase(), name || '', passwordHash, role || 'user']
+      'INSERT INTO users (id, username, name, password_hash, role) VALUES (?, ?, ?, ?, ?)',
+      [id, username.toLowerCase(), name || '', passwordHash, role || 'user']
     );
     return this.findById(id);
   }
