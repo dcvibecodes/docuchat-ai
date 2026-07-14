@@ -143,7 +143,7 @@ body {
 .citations { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border-subtle); font-size: 0.64rem; color: var(--text-faint); }
 .citation-link { display: inline-block; padding: 2px 6px; margin: 2px; background: var(--primary-dim); color: var(--primary); border-radius: 3px; font-weight: 500; }
 
-.chat-input-area { padding: 12px 20px; border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
+.chat-input-area { padding: 12px 20px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border-subtle); flex-shrink: 0; }
 .typing-indicator { display: flex; align-items: center; gap: 5px; font-size: 0.66rem; color: var(--text-faint); margin-bottom: 6px; }
 .typing-indicator.hidden { display: none; }
 .typing-indicator span { width: 5px; height: 5px; background: var(--primary); border-radius: 50%; animation: typing 1.4s infinite; }
@@ -391,8 +391,8 @@ body.is-techadmin .techadmin-locked::after { display: none; }
   .chat-main-header { padding: 8px 12px; }
   .shortcut-hint { display: none; }
   .chat-messages { padding: 12px; }
-  .chat-input-area { padding: 8px 12px; }
-  .chat-form textarea { font-size: 0.8rem; }
+  .chat-input-area { padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .chat-form textarea { font-size: 0.8rem; min-height: 42px; }
   .message { max-width: 90%; }
   .message-body { padding: 8px 12px; font-size: 0.76rem; }
 
