@@ -235,7 +235,7 @@ async function extractSqlite(filePath) {
             text += colNames.join(' | ') + '\n';
             text += '-'.repeat(colNames.join(' | ').length) + '\n';
             for (const row of result[0].values) {
-              text += row.map(v => formatCellValue(v)).join(' | ') + '\n';
+              text += row.map(v => formatCellValue(v)).join(' | ') + '\n\n';
             }
           } else {
             // Key-value style for wide tables (better for RAG)
@@ -248,7 +248,7 @@ async function extractSqlite(filePath) {
                 }
               }
               if (entries.length) {
-                text += entries.join(', ') + '\n';
+                text += entries.join(', ') + '\n\n';
               }
             }
           }
