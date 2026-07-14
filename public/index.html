@@ -174,6 +174,12 @@
               <button id="upload-btn" class="btn btn-primary">Upload</button>
             </div>
           </div>
+          <div id="batch-bar" class="batch-bar hidden">
+            <span id="batch-count">0 selected</span>
+            <button id="batch-select-all" class="btn btn-ghost btn-sm">Select All</button>
+            <button id="batch-deselect" class="btn btn-ghost btn-sm">Deselect All</button>
+            <button id="batch-delete-btn" class="btn btn-ghost btn-sm" style="color:var(--danger);border-color:var(--danger)">Delete Selected</button>
+          </div>
           <div class="documents-toolbar">
             <input type="text" id="doc-search" placeholder="Search documents..." class="documents-search">
             <input type="text" id="url-input" placeholder="https://example.com/page" class="documents-search">
@@ -187,59 +193,17 @@
             <span class="doc-type-badge">TXT</span>
             <span class="doc-type-badge">Excel (xlsx/xls)</span>
             <span class="doc-type-badge">CSV</span>
+            <span class="doc-type-badge">SQLite / DB</span>
+            <span class="doc-type-badge">SQL dump</span>
             <span class="doc-type-badge">Web URL</span>
             <br>
-            <span class="doc-type-hint-tip"><svg class="doc-type-tip-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg> PDF, Word, and Markdown work best for SOPs and narrative content. Excel/CSV are better suited for reference data and lookups.</span>
+            <span class="doc-type-hint-tip"><svg class="doc-type-tip-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg> PDF, Word, and Markdown work best for SOPs and narrative content. Excel/CSV for reference data. SQLite/SQL for database content (blog exports, CMS data, etc).</span>
           </div>
           <div class="documents-list-header">
             <span class="doc-count-label" id="doc-count-label"></span>
           </div>
           <div id="documents-list" class="documents-list"></div>
           <div id="storage-info" class="storage-info"></div>
-
-          <!-- Sitemap Import (Tech Admin only) -->
-          <div class="sitemap-section techadmin-only" id="sitemap-section">
-            <div class="sitemap-header">
-              <h3>Import from Sitemap</h3>
-              <p class="sitemap-desc">Import multiple pages from a website at once using its sitemap. Enter the sitemap URL or domain to discover available pages.</p>
-            </div>
-            <div class="sitemap-input-row">
-              <input type="text" id="sitemap-url-input" placeholder="https://yourblog.com or https://yourblog.com/sitemap.xml" class="documents-search">
-              <button id="sitemap-discover-btn" class="btn btn-primary">Discover</button>
-            </div>
-            <div id="sitemap-results" class="sitemap-results hidden">
-              <div class="sitemap-summary" id="sitemap-summary"></div>
-              <div class="sitemap-options">
-                <div class="form-group" style="margin-bottom:8px;">
-                  <label>Path filter (optional)</label>
-                  <input type="text" id="sitemap-path-filter" placeholder="/blog/ or /articles/" class="documents-search">
-                </div>
-                <div class="form-group" style="margin-bottom:8px;">
-                  <label>How many to import</label>
-                  <select id="sitemap-limit" class="chart-range-select" style="width:100%;padding:7px 10px;">
-                    <option value="50">First 50</option>
-                    <option value="100" selected>First 100</option>
-                    <option value="250">First 250</option>
-                    <option value="500">First 500</option>
-                    <option value="all">All (up to cap)</option>
-                  </select>
-                </div>
-              </div>
-              <div id="sitemap-preview" class="sitemap-preview"></div>
-              <div class="sitemap-actions">
-                <button id="sitemap-cancel-btn" class="btn btn-ghost">Cancel</button>
-                <button id="sitemap-import-btn" class="btn btn-primary">Start Import</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Sitemap hint for non-techadmins -->
-          <div class="sitemap-section admin-only-not-tech" id="sitemap-hint-nontechadmin">
-            <p class="sitemap-restricted-hint">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              You can add individual URLs above. To import an entire website via sitemap, contact your tech admin.
-            </p>
-          </div>
         </div>
       </div>
 
@@ -384,10 +348,6 @@
                 </label>
               </div>
 
-              <div class="form-group techadmin-only" style="margin-top:12px;">
-                <label>Sitemap import URL cap <span style="font-weight:normal;color:var(--text-faint)">(0 = no limit)</span></label>
-                <input type="number" id="cfg-sitemap-max-urls" min="0" value="500">
-              </div>
             </div>
             <button id="save-config-btn" class="btn btn-primary">Save Configuration</button>
           </div>
@@ -500,24 +460,12 @@
             <ul>
               <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select multiple files. Supports PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV.</li>
               <li><strong>Add URL:</strong> Paste a public website URL to scrape and index its content.</li>
-              <li><strong>Enable/Disable Sources:</strong> Toggle any document or source group on/off. Disabled sources are excluded from chat answers instantly — no re-processing needed. Re-enable anytime.</li>
+              <li><strong>Enable/Disable Sources:</strong> Toggle any document on/off. Disabled sources are excluded from chat answers instantly — no re-processing needed. Re-enable anytime.</li>
               <li><strong>Re-embed All:</strong> After changing the embedding model, click to regenerate all embeddings without re-uploading.</li>
               <li><strong>Retry:</strong> If processing failed (VPN/network issue), click Retry on the failed document.</li>
               <li><strong>Re-upload:</strong> Same filename replaces the old version automatically.</li>
               <li><strong>Status:</strong> "processing" auto-refreshes every 3 seconds until "ready".</li>
               <li><strong>Format guidance:</strong> PDF, Word, and Markdown work best for SOPs and narrative content. Excel/CSV are better for reference data and lookups.</li>
-            </ul>
-          </div>
-
-          <div class="help-section admin-only" style="display:none;">
-            <h3>Admin — Sitemap Import (Tech Admin)</h3>
-            <ul>
-              <li><strong>Import from Sitemap:</strong> Enter a domain or sitemap URL → Discover → choose how many pages to import → Start Import. Pages are imported in the background.</li>
-              <li><strong>Source Groups:</strong> Sitemap imports appear as a single group block in the Knowledge list (e.g., "yourblog.com — 600 pages") rather than individual entries.</li>
-              <li><strong>Sync:</strong> Click the "Sync" button on a source group to detect new pages added to the sitemap since last import. Only new pages are imported.</li>
-              <li><strong>URL Cap:</strong> Set a maximum number of URLs per sitemap import in Admin settings. Set to 0 for no limit.</li>
-              <li><strong>Path filter:</strong> During discovery, filter by URL path (e.g., /articles/) to import only specific sections of a site.</li>
-              <li><strong>Cancel:</strong> Click "Cancel" anytime during the discovery phase to abort without importing.</li>
             </ul>
           </div>
 
@@ -664,8 +612,8 @@
               <path d="M24 8v20m-8-8l8-8 8 8M8 36h32" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
             </svg>
             <p>Drag and drop files or click to select</p>
-            <span class="file-types">PDF, DOCX, TXT, Markdown, Excel (.xlsx)</span>
-            <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.xlsx,.xls" multiple hidden>
+            <span class="file-types">PDF, DOCX, TXT, Markdown, Excel, CSV, SQLite, SQL</span>
+            <input type="file" id="file-input" accept=".pdf,.docx,.txt,.md,.xlsx,.xls,.csv,.sqlite,.db,.sqlite3,.sql" multiple hidden>
           </div>
           <div id="upload-file-info" class="upload-file-info hidden"></div>
           <div id="upload-progress" class="upload-progress-area hidden">

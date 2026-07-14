@@ -1,6 +1,6 @@
-# DocuChat AI v2.5.0
+# DocuChat AI v2.6.0
 
-Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, import entire sites via sitemap, ask questions, get answers grounded only in your sources with citations.
+Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
 
 ## Features
 
@@ -21,13 +21,8 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 ### Knowledge Base
 - **Multi-file drag-and-drop upload** with progress indicator
 - **Web URL scraping** — paste a URL to scrape and index content as a document source
-- **Sitemap import (Tech Admin)** — two-phase architecture: scrape first, then embed one-by-one to prevent server overload
-- **Source groups** — sitemap imports appear as a single group block with aggregate status (ready/processing/error counts)
-- **Sync** — re-scan a sitemap to find and import only new pages since last import (global dedup — never reimports existing URLs)
-- **Cancel import** — stop a running sitemap import at any time; already-scraped pages are preserved
-- **Live progress** — real-time progress indicator for sitemap import (scraping phase → processing phase) with count and cancel button
 - **Per-document progress bar** — visual indicator on each "processing" document showing extraction → chunking → embedding stages
-- **Enable/disable toggle** — turn any document or source group on/off instantly without re-processing; disabled sources are excluded from chat
+- **Enable/disable toggle** — turn any document on/off instantly without re-processing; disabled sources are excluded from chat
 - **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV, Web URLs
 - **Format guidance** — hints in UI: PDF/Word/Markdown best for SOPs; Excel/CSV best for reference data
 - **Re-embed All** — regenerate embeddings without re-uploading after changing embedding model
@@ -40,9 +35,8 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **3-tier roles: user, admin, techadmin**
   - User: Chat + Help only
   - Admin: Chat + Knowledge + Chat Logs + Admin (except AI config/prompt) + Help
-  - Tech Admin: Everything including AI configuration, system prompt, and sitemap import
+  - Tech Admin: Everything including AI configuration and system prompt
 - **AI Configuration** — LLM provider (OpenAI, Gemini, Claude, OpenRouter, Local/Ollama), embedding model, temperature, max chunks, similarity threshold, streaming toggle
-- **Sitemap URL cap** — configurable max URLs per import (0 = no limit), tech admin only
 - **System prompt** — configurable from Admin UI, controls grounding, citations, conflict resolution
 - **User Management** — create users (username + display name + password + role), promote/demote, remove
 - **Chat usage bar chart** with date range selector (today, 7/30/90/180/365 days)
@@ -56,8 +50,7 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Conflict resolution** — latest document/update wins, conflicts reported in responses
 - **No build step** — vanilla JS single-page app frontend
 - **Safe migrations** — new schema changes applied non-destructively on startup; existing data preserved
-- **Server stability** — unhandledRejection/uncaughtException handlers prevent crashes; all network calls have hard timeouts; import lock prevents concurrent overload; 200ms breathing delay between embeddings; periodic DB saves during long operations
-- **Cancel support** — running sitemap imports can be stopped mid-operation without data loss
+- **Server stability** — unhandledRejection/uncaughtException handlers prevent crashes; all network calls have hard timeouts; periodic DB saves during long operations
 
 ## Tech Stack
 
@@ -66,7 +59,7 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Frontend**: Vanilla JS single-page app (no framework, no build step)
 - **Embeddings**: OpenAI `text-embedding-3-small` or `text-embedding-3-large` (configurable)
 - **LLM**: Configurable — OpenAI, Gemini, Claude, OpenRouter, or local Ollama
-- **Web scraping**: Cheerio for URL source extraction and sitemap parsing
+- **Web scraping**: Cheerio for URL source extraction
 
 ## Quick Start
 
@@ -83,23 +76,16 @@ Open `http://localhost:3000`. First visit shows a one-time setup screen to creat
 3. Wait for "ready" status
 4. **Chat** tab → ask questions
 
-## Upgrading from v2.3.0 / v2.4.0
+## Upgrading from previous versions
 
-No manual steps required. The migration runs automatically on startup and:
-- Creates the `source_groups` table
-- Adds `group_id`, `enabled`, and `processing_progress` columns to existing documents (defaults to enabled, 0% progress)
-- Removes dependency on the `email` column in user creation (fixes first-login error on fresh databases)
+No manual steps required. The migration runs automatically on startup:
+- Adds `enabled` and `processing_progress` columns to existing documents (defaults to enabled, 0% progress)
 - All existing data, documents, embeddings, and conversations are preserved
 - No re-indexing or re-embedding needed
-- Previously imported sitemap URLs (e.g., 671 already imported) remain as-is; on next import/sync they are auto-detected as existing and assigned to the new source group
-- Server crash protection added: unhandled promise rejections no longer kill the process
+- Previously imported URLs remain as individual documents and work normally
+- Server crash protection: unhandled promise rejections no longer kill the process
 
-**Port configuration note:** The app reads `PORT` from environment variables. If you use PM2, ensure the port is set in the PM2 ecosystem config (not just the `.env` file) so restarts use the correct port:
-```bash
-pm2 start src/index.js --name docuchat -- --port 3005
-# Or in ecosystem.config.js:
-# env: { PORT: 3005 }
-```
+**Port configuration:** The app reads `PORT` from environment variables. Use an `ecosystem.config.js` for PM2 (see DEPLOY-v2.6.md).
 
 ## Environment Variables
 
@@ -135,12 +121,11 @@ document-chatbot/
 │   ├── controllers/         # Route handlers
 │   ├── database/            # sql.js connection, migrations, query layer
 │   ├── middleware/           # Auth, validation, upload, error handling
-│   ├── models/              # Data access (User, Document, SourceGroup, Chunk, Embedding, ChatLog, etc.)
+│   ├── models/              # Data access (User, Document, Chunk, Embedding, ChatLog, etc.)
 │   ├── routes/              # Express route definitions
 │   ├── services/            # Business logic
 │   │   ├── extractors/      # PDF, DOCX, TXT, MD, Excel, CSV extractors
 │   │   ├── webScraper.js    # URL content extraction (45s timeout)
-│   │   ├── sitemapService.js # Sitemap discovery, parsing, and auto-detection
 │   │   ├── chunker.js       # Semantic text chunking with page tracking
 │   │   ├── embeddingService.js  # OpenAI/local embeddings (60s timeout per batch)
 │   │   ├── documentProcessor.js # Two-phase: extract+chunk+embed with progress reporting
@@ -171,18 +156,6 @@ document-chatbot/
 - `POST /api/documents/:id/reindex` — Retry single document
 - `PATCH /api/documents/:id/toggle` — Enable/disable a document
 - `DELETE /api/documents/:id` — Delete document
-
-### Source Groups
-- `GET /api/documents/groups` — List all source groups
-- `POST /api/documents/groups/:id/sync` — Sync: import new pages from sitemap
-- `PATCH /api/documents/groups/:id/toggle` — Enable/disable entire group
-- `DELETE /api/documents/groups/:id` — Delete group and all its pages
-
-### Sitemap Import (Tech Admin)
-- `POST /api/documents/sitemap/discover` — Discover URLs from sitemap or domain
-- `POST /api/documents/sitemap/import` — Start two-phase background import
-- `POST /api/documents/sitemap/cancel` — Cancel a running import (stops after current item)
-- `GET /api/documents/sitemap/progress` — Poll import progress (phase, completed, total, failed)
 
 ### Chat
 - `GET /api/chat/conversations` — List conversations
@@ -223,17 +196,9 @@ document-chatbot/
 5. **Query** — User question converted to vector → cosine similarity search (only enabled sources)
 6. **Generate** — Top matching chunks sent to LLM with system prompt → grounded answer with citations
 
-## Sitemap Import Architecture
-
-The sitemap import uses a two-phase approach designed for low-memory servers:
-
-**Phase 1 (Scraping):** Each URL is fetched and saved as a text file. Documents are created with `status: 'processing'`. No AI API calls. One URL at a time, sequentially.
-
-**Phase 2 (Processing):** Each saved document is processed one at a time — extract text, chunk, call embedding API, store vectors. Only one document's embeddings are in memory at any point.
-
-This prevents the memory spikes and hanging promises that occur when scraping + embedding happen concurrently.
-
 ## Deployment
+
+See `DEPLOY-v2.6.md` for detailed VPS deployment instructions with PM2.
 
 ```bash
 # Copy project to VPS (exclude node_modules)
@@ -242,14 +207,13 @@ scp -r document-chatbot/ user@vps:/home/user/
 # On VPS
 cd document-chatbot
 npm install
-npm install -g pm2
-pm2 start src/index.js --name docuchat
-pm2 save && pm2 startup
+pm2 start ecosystem.config.js
+pm2 save
 ```
 
 For HTTPS, put Nginx in front with SSL termination. The app includes `trust proxy` support for reverse proxy deployments.
 
-**Minimum server requirements:** 512MB RAM (1GB recommended for sitemap imports of 1000+ URLs).
+**Minimum server requirements:** 512MB RAM.
 
 ## Backup
 

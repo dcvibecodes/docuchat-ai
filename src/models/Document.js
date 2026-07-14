@@ -110,23 +110,6 @@ class Document {
     db.run('UPDATE documents SET enabled = ? WHERE id = ?', [enabled ? 1 : 0, id]);
   }
 
-  static setGroupEnabled(groupId, enabled) {
-    db.run('UPDATE documents SET enabled = ? WHERE group_id = ?', [enabled ? 1 : 0, groupId]);
-  }
-
-  static setGroupId(id, groupId) {
-    db.run('UPDATE documents SET group_id = ? WHERE id = ?', [groupId, id]);
-  }
-
-  static findUngrouped({ search, status } = {}) {
-    let query = 'SELECT * FROM documents WHERE (group_id IS NULL OR group_id = \'\')';
-    const params = [];
-    if (status) { query += ' AND status = ?'; params.push(status); }
-    if (search) { query += ' AND (original_name LIKE ? OR filename LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-    query += ' ORDER BY uploaded_at DESC';
-    return db.all(query, params);
-  }
-
   static getEnabledDocumentIds() {
     const rows = db.all('SELECT id FROM documents WHERE enabled = 1');
     return rows.map(r => r.id);

@@ -232,90 +232,40 @@
 
   // ── Documents ──
   let docPoll = null;
-  let sourceGroups = [];
+  let selectedDocs = new Set();
+
   async function loadDocuments() {
     try {
       state.documents = await api.get('/documents');
-      try { sourceGroups = await api.get('/documents/groups'); } catch { sourceGroups = []; }
       renderDocs();
       startDocPoll();
-      // Check if a sitemap import is running and show progress
-      try {
-        const p = await api.get('/documents/sitemap/progress');
-        if (p.running && !importPollTimer) startImportProgressPoll();
-      } catch {}
     } catch(err){toast(err.message,'error');}
   }
   function startDocPoll() { if(state.documents.some(d=>d.status==='processing')){if(!docPoll) docPoll=setInterval(async()=>{try{state.documents=await api.get('/documents');renderDocs();if(!state.documents.some(d=>d.status==='processing')){clearInterval(docPoll);docPoll=null;}}catch{}},3000);}else{if(docPoll){clearInterval(docPoll);docPoll=null;}} }
+
+  function updateBatchBar() {
+    const bar = $('batch-bar');
+    if (selectedDocs.size > 0) {
+      bar.classList.remove('hidden');
+      $('batch-count').textContent = selectedDocs.size + ' selected';
+    } else {
+      bar.classList.add('hidden');
+    }
+  }
+
   function renderDocs(filter) {
     const search = filter !== undefined ? filter : ($('doc-search')?.value?.toLowerCase()||'');
     const container = $('documents-list');
+    const filtered = state.documents.filter(d => !search || d.original_name.toLowerCase().includes(search));
 
-    // Separate grouped vs ungrouped documents
-    const groupedDocIds = new Set();
-    for (const g of sourceGroups) {
-      state.documents.filter(d => d.group_id === g.id).forEach(d => groupedDocIds.add(d.id));
-    }
-    const ungrouped = state.documents.filter(d => !groupedDocIds.has(d.id));
-    // Split ungrouped into files vs URLs
-    const ungroupedFiles = ungrouped.filter(d => d.file_type !== 'url');
-    const ungroupedUrls = ungrouped.filter(d => d.file_type === 'url');
-    const filteredFiles = ungroupedFiles.filter(d => !search || d.original_name.toLowerCase().includes(search));
-    const filteredUrls = ungroupedUrls.filter(d => !search || d.original_name.toLowerCase().includes(search));
-
-    let html = '';
-
-    // Render source groups first
-    const filteredGroups = sourceGroups.filter(g => !search || g.name.toLowerCase().includes(search));
-    if (filteredGroups.length) {
-      html += filteredGroups.map(g => {
-        const docCount = g.doc_count || state.documents.filter(d => d.group_id === g.id).length;
-        const enabledClass = g.enabled ? '' : ' disabled';
-        const toggleTitle = g.enabled ? 'Disable this source' : 'Enable this source';
-        // Aggregate status from server
-        let statusHtml = '';
-        if (g.processing_count > 0) {
-          statusHtml = '<span class="doc-badge processing">' + g.processing_count + ' processing</span>';
-        } else if (g.error_count > 0 && g.ready_count > 0) {
-          statusHtml = '<span class="doc-badge ready">' + g.ready_count + ' ready</span><span class="doc-badge error">' + g.error_count + ' error</span>';
-        } else if (g.error_count > 0) {
-          statusHtml = '<span class="doc-badge error">' + g.error_count + ' errors</span>';
-        } else if (g.ready_count > 0) {
-          statusHtml = '<span class="doc-badge ready">ready</span>';
-        }
-        return '<div class="doc-row source-group-row'+enabledClass+'">'
-          + '<div class="doc-icon url">sitemap</div>'
-          + '<div class="doc-info"><div class="doc-name">'+esc(g.name)+'</div><div class="doc-meta-line"><span>'+docCount+' pages</span><span>'+esc(g.type)+'</span><span>'+fmtDate(g.created_at)+'</span></div></div>'
-          + statusHtml
-          + '<div class="doc-row-actions"><button class="doc-delete-btn" data-action="sync-group" data-gid="'+g.id+'" style="color:var(--primary);border-color:var(--primary)">Sync</button><label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(g.enabled?'checked':'')+' data-action="toggle-group" data-gid="'+g.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-group" data-gid="'+g.id+'">Delete</button></div>'
-          + '</div>';
-      }).join('');
-    }
-
-    // Render ungrouped URLs as a pseudo-group if there are any
-    if (filteredUrls.length) {
-      const urlReady = filteredUrls.filter(d => d.status === 'ready').length;
-      const urlProcessing = filteredUrls.filter(d => d.status === 'processing').length;
-      const urlError = filteredUrls.filter(d => d.status === 'error').length;
-      let urlStatus = '';
-      if (urlProcessing > 0) urlStatus = '<span class="doc-badge processing">' + urlProcessing + ' processing</span>';
-      else if (urlReady > 0) urlStatus = '<span class="doc-badge ready">' + urlReady + ' ready</span>';
-      if (urlError > 0) urlStatus += '<span class="doc-badge error">' + urlError + ' error</span>';
-      html += '<div class="doc-row source-group-row" style="border-left-color:var(--text-faint);">'
-        + '<div class="doc-icon url">url</div>'
-        + '<div class="doc-info"><div class="doc-name">Individual URLs</div><div class="doc-meta-line"><span>' + filteredUrls.length + ' pages</span><span>manually added</span></div></div>'
-        + urlStatus
-        + '<div class="doc-row-actions"></div>'
-        + '</div>';
-    }
-
-    // Render ungrouped file documents
-    if (!filteredFiles.length && !filteredGroups.length && !filteredUrls.length) {
-      container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-faint);font-size:0.76rem;">'+(search?'No match.':'No documents yet.')+'</div>';
+    if (!filtered.length) {
+      container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-faint);font-size:0.76rem;">'+(search?'No match.':'No documents yet. Upload a file or add a URL above.')+'</div>';
       $('storage-info').textContent='';
+      updateBatchBar();
       return;
     }
-    html += filteredFiles.map(doc => {
+
+    container.innerHTML = filtered.map(doc => {
       const isNew = state.uploadedThisSession.has(doc.id);
       let badge;
       if (isNew) { badge = '<span class="doc-badge new">new</span>'; }
@@ -329,21 +279,61 @@
       const enabled = doc.enabled !== 0;
       const enabledClass = enabled ? '' : ' disabled';
       const toggleTitle = enabled ? 'Disable this source' : 'Enable this source';
-      return '<div class="doc-row'+enabledClass+'"><div class="doc-icon '+doc.file_type+'">'+doc.file_type+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+'<label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(enabled?'checked':'')+' data-action="toggle-doc" data-did="'+doc.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
+      const checked = selectedDocs.has(doc.id) ? ' checked' : '';
+      return '<div class="doc-row'+enabledClass+'" data-docid="'+doc.id+'"><input type="checkbox" class="doc-checkbox" data-action="select-doc" data-did="'+doc.id+'"'+checked+'><div class="doc-icon '+doc.file_type+'">'+doc.file_type+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+'<label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(enabled?'checked':'')+' data-action="toggle-doc" data-did="'+doc.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
     }).join('');
 
-    container.innerHTML = html;
     const total = state.documents.reduce((s,d)=>s+d.file_size,0);
     const enabledCount = state.documents.filter(d => d.enabled !== 0).length;
-    const groupCount = sourceGroups.length;
-    let info = state.documents.length + ' documents';
-    if (groupCount) info += ' · ' + groupCount + ' source group' + (groupCount > 1 ? 's' : '');
+    let info = state.documents.length + ' document' + (state.documents.length !== 1 ? 's' : '');
     info += ' · ' + fmtBytes(total);
     if (enabledCount < state.documents.length) info += ' · ' + enabledCount + ' active';
     $('storage-info').textContent = info;
+    updateBatchBar();
   }
 
-  async function deleteDoc(id) { if (!confirm('Are you sure you want to delete this document? This will permanently remove it from the knowledge base.')) return; try { await api.del('/documents/'+id); toast('Deleted','success'); state.documents=state.documents.filter(d=>d.id!==id); renderDocs(); } catch(err){toast(err.message,'error');} }
+  async function deleteDoc(id) {
+    if (!confirm('Delete this document permanently from the knowledge base?')) return;
+    const row = document.querySelector('[data-docid="'+id+'"]');
+    const btn = row ? row.querySelector('[data-action="delete-doc"]') : null;
+    if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; btn.style.color = 'var(--text-faint)'; }
+    try {
+      await api.del('/documents/'+id);
+      toast('Deleted','success');
+      state.documents = state.documents.filter(d => d.id !== id);
+      selectedDocs.delete(id);
+      renderDocs();
+    } catch(err) {
+      toast(err.message,'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Delete'; btn.style.color = ''; }
+    }
+  }
+
+  async function batchDelete() {
+    if (!selectedDocs.size) return;
+    const count = selectedDocs.size;
+    if (!confirm('Delete ' + count + ' document' + (count > 1 ? 's' : '') + ' permanently? This cannot be undone.')) return;
+    const btn = $('batch-delete-btn');
+    btn.disabled = true; btn.textContent = 'Deleting ' + count + '...';
+    const ids = Array.from(selectedDocs);
+    let deleted = 0;
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await api.del('/documents/' + id);
+        state.documents = state.documents.filter(d => d.id !== id);
+        selectedDocs.delete(id);
+        deleted++;
+        btn.textContent = 'Deleting ' + (deleted + failed) + '/' + count + '...';
+      } catch (err) {
+        failed++;
+      }
+    }
+    btn.disabled = false; btn.textContent = 'Delete Selected';
+    if (deleted > 0) toast(deleted + ' document' + (deleted > 1 ? 's' : '') + ' deleted', 'success');
+    if (failed > 0) toast(failed + ' failed to delete', 'error');
+    renderDocs();
+  }
   async function retryDoc(id) { try { await api.post('/documents/'+id+'/reindex'); toast('Retrying...','info'); await loadDocuments(); } catch(err){toast(err.message,'error');} }
 
   async function reprocessAll() {
@@ -369,112 +359,6 @@
       await loadDocuments();
     } catch(err) { toast(err.message, 'error'); }
     finally { btn.disabled = false; btn.textContent = 'Add URL'; }
-  }
-
-  // ── Sitemap Import ──
-  let sitemapDiscoveredUrl = null;
-  async function sitemapDiscover() {
-    const input = $('sitemap-url-input');
-    const url = input.value.trim();
-    if (!url) { toast('Enter a sitemap URL or domain', 'error'); return; }
-    const btn = $('sitemap-discover-btn');
-    btn.disabled = true; btn.textContent = 'Discovering...';
-    try {
-      const result = await api.post('/documents/sitemap/discover', { url });
-      sitemapDiscoveredUrl = result.sitemapUrl;
-      const capText = result.maxCap ? ' (cap: ' + result.maxCap + ')' : ' (no cap)';
-      $('sitemap-summary').innerHTML = 'Found <strong>' + result.totalUrls + ' URLs</strong> in sitemap' + capText;
-      // Update limit dropdown to reflect cap
-      const sel = $('sitemap-limit');
-      const cap = result.maxCap || Infinity;
-      sel.innerHTML = '';
-      [50, 100, 250, 500, 1000].forEach(n => {
-        if (n <= cap || !result.maxCap) {
-          const opt = document.createElement('option');
-          opt.value = n; opt.textContent = 'First ' + n;
-          if (n === 100) opt.selected = true;
-          sel.appendChild(opt);
-        }
-      });
-      const allOpt = document.createElement('option');
-      allOpt.value = 'all';
-      allOpt.textContent = 'All' + (result.maxCap ? ' (up to ' + result.maxCap + ')' : ' (' + result.totalUrls + ')');
-      sel.appendChild(allOpt);
-      // Show preview
-      const preview = $('sitemap-preview');
-      preview.innerHTML = result.urls.map(u => '<div>' + esc(u) + '</div>').join('') + (result.hasMore ? '<div style="color:var(--text-faint);font-style:italic;">...and more</div>' : '');
-      $('sitemap-results').classList.remove('hidden');
-    } catch(err) { toast(err.message, 'error'); }
-    finally { btn.disabled = false; btn.textContent = 'Discover'; }
-  }
-  async function sitemapImport() {
-    if (!sitemapDiscoveredUrl) { toast('Discover a sitemap first', 'error'); return; }
-    const limit = $('sitemap-limit').value;
-    const pathFilter = $('sitemap-path-filter').value.trim();
-    const btn = $('sitemap-import-btn');
-    btn.disabled = true; btn.textContent = 'Importing...';
-    try {
-      const result = await api.post('/documents/sitemap/import', { sitemapUrl: sitemapDiscoveredUrl, limit, pathFilter });
-      toast(result.message, 'success');
-      $('sitemap-results').classList.add('hidden');
-      $('sitemap-url-input').value = '';
-      sitemapDiscoveredUrl = null;
-      startImportProgressPoll();
-    } catch(err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Start Import'; }
-  }
-
-  let importPollTimer = null;
-  function startImportProgressPoll() {
-    const summary = $('sitemap-summary');
-    const resultsEl = $('sitemap-results');
-    if (resultsEl) resultsEl.classList.remove('hidden');
-    if (importPollTimer) clearInterval(importPollTimer);
-    importPollTimer = setInterval(async () => {
-      try {
-        const p = await api.get('/documents/sitemap/progress');
-        if (p.running) {
-          const phaseLabel = p.phase === 'scraping' ? 'Scraping pages' : 'Processing & embedding';
-          summary.innerHTML = '<strong>' + phaseLabel + ':</strong> ' + p.completed + ' / ' + p.total + (p.failed ? ' (' + p.failed + ' failed)' : '') + ' <button id="cancel-import-btn" class="doc-delete-btn" style="margin-left:8px;color:var(--danger);border-color:var(--danger)">Cancel</button>';
-          const cancelBtn = $('cancel-import-btn');
-          if (cancelBtn) cancelBtn.onclick = cancelImport;
-        } else {
-          let doneLabel = 'Import complete';
-          if (p.phase === 'error') doneLabel = 'Import stopped due to error';
-          else if (p.phase === 'cancelled') doneLabel = 'Import cancelled';
-          summary.innerHTML = '<strong>' + doneLabel + ':</strong> ' + p.completed + ' / ' + p.total + (p.failed ? ' (' + p.failed + ' failed)' : '');
-          clearInterval(importPollTimer);
-          importPollTimer = null;
-          $('sitemap-import-btn').disabled = false;
-          $('sitemap-import-btn').textContent = 'Start Import';
-          loadDocuments();
-        }
-      } catch { clearInterval(importPollTimer); importPollTimer = null; }
-    }, 3000);
-  }
-
-  async function cancelImport() {
-    try {
-      await api.post('/documents/sitemap/cancel');
-      toast('Cancelling import...', 'info');
-    } catch(err) { toast(err.message, 'error'); }
-  }
-
-  async function syncGroup(groupId, btnEl) {
-    btnEl.disabled = true; btnEl.textContent = 'Syncing...';
-    try {
-      const result = await api.post('/documents/groups/'+groupId+'/sync');
-      if (result.newUrls === 0) {
-        toast('Already up to date — no new pages found', 'info');
-        btnEl.disabled = false; btnEl.textContent = 'Sync';
-      } else {
-        toast('Found ' + result.newUrls + ' new page' + (result.newUrls > 1 ? 's' : '') + '. Importing...', 'success');
-        startImportProgressPoll();
-        // Re-enable button when progress finishes (handled by poll)
-        const checkDone = setInterval(() => {
-          if (!importPollTimer) { btnEl.disabled = false; btnEl.textContent = 'Sync'; clearInterval(checkDone); }
-        }, 3000);
-      }
-    } catch(err) { toast(err.message, 'error'); btnEl.disabled = false; btnEl.textContent = 'Sync'; }
   }
 
   async function uploadDoc(e) {
@@ -647,9 +531,9 @@
       return '<div class="user-row"><span class="user-email">'+esc(u.username)+' <span style="color:var(--text-faint)">('+esc(u.name||'')+')</span></span><span class="user-role '+u.role+'">'+u.role+'</span>'+roleBtn+deleteBtn+'</div>';
     }).join('');
   }
-  function fillConfig(c) { $('cfg-llm-provider').value=c.llm_provider||'openai'; $('cfg-openai-key').value=c.openai_api_key||''; $('cfg-openai-model').value=c.openai_model||'gpt-4o-mini'; $('cfg-gemini-key').value=c.gemini_api_key||''; $('cfg-gemini-model').value=c.gemini_model||'gemini-1.5-flash'; $('cfg-claude-key').value=c.claude_api_key||''; $('cfg-claude-model').value=c.claude_model||'claude-3-haiku-20240307'; $('cfg-openrouter-key').value=c.openrouter_api_key||''; $('cfg-openrouter-model').value=c.openrouter_model||'openai/gpt-4o-mini'; $('cfg-local-url').value=c.local_llm_url||'http://localhost:11434'; $('cfg-local-model').value=c.local_model||'llama3'; $('cfg-embedding-model').value=c.embedding_model||'text-embedding-3-small'; $('cfg-temperature').value=c.temperature||'0.1'; $('cfg-temp-value').textContent=c.temperature||'0.1'; $('cfg-max-chunks').value=c.max_retrieved_chunks||'5'; $('cfg-threshold').value=c.similarity_threshold||'0.7'; $('cfg-threshold-value').textContent=c.similarity_threshold||'0.7'; $('cfg-streaming').checked=c.streaming_enabled!=='0'; $('cfg-sitemap-max-urls').value=c.sitemap_max_urls||'500'; toggleProvider(c.llm_provider||'openai'); }
+  function fillConfig(c) { $('cfg-llm-provider').value=c.llm_provider||'openai'; $('cfg-openai-key').value=c.openai_api_key||''; $('cfg-openai-model').value=c.openai_model||'gpt-4o-mini'; $('cfg-gemini-key').value=c.gemini_api_key||''; $('cfg-gemini-model').value=c.gemini_model||'gemini-1.5-flash'; $('cfg-claude-key').value=c.claude_api_key||''; $('cfg-claude-model').value=c.claude_model||'claude-3-haiku-20240307'; $('cfg-openrouter-key').value=c.openrouter_api_key||''; $('cfg-openrouter-model').value=c.openrouter_model||'openai/gpt-4o-mini'; $('cfg-local-url').value=c.local_llm_url||'http://localhost:11434'; $('cfg-local-model').value=c.local_model||'llama3'; $('cfg-embedding-model').value=c.embedding_model||'text-embedding-3-small'; $('cfg-temperature').value=c.temperature||'0.1'; $('cfg-temp-value').textContent=c.temperature||'0.1'; $('cfg-max-chunks').value=c.max_retrieved_chunks||'5'; $('cfg-threshold').value=c.similarity_threshold||'0.7'; $('cfg-threshold-value').textContent=c.similarity_threshold||'0.7'; $('cfg-streaming').checked=c.streaming_enabled!=='0'; toggleProvider(c.llm_provider||'openai'); }
   function toggleProvider(p) { document.querySelectorAll('.provider-fields').forEach(el=>el.classList.add('hidden')); const t=$('cfg-'+p+'-fields'); if(t) t.classList.remove('hidden'); }
-  async function saveConfig() { const cfg={llm_provider:$('cfg-llm-provider').value,openai_api_key:$('cfg-openai-key').value,openai_model:$('cfg-openai-model').value,gemini_api_key:$('cfg-gemini-key').value,gemini_model:$('cfg-gemini-model').value,claude_api_key:$('cfg-claude-key').value,claude_model:$('cfg-claude-model').value,openrouter_api_key:$('cfg-openrouter-key').value,openrouter_model:$('cfg-openrouter-model').value,local_llm_url:$('cfg-local-url').value,local_model:$('cfg-local-model').value,embedding_model:$('cfg-embedding-model').value,temperature:$('cfg-temperature').value,max_retrieved_chunks:$('cfg-max-chunks').value,similarity_threshold:$('cfg-threshold').value,streaming_enabled:$('cfg-streaming').checked?'1':'0',sitemap_max_urls:$('cfg-sitemap-max-urls').value}; for(const k of Object.keys(cfg)){if(cfg[k]?.startsWith('•'))delete cfg[k];} try{await api.patch('/admin/config',cfg);toast('Saved','success');}catch(err){toast(err.message,'error');} }
+  async function saveConfig() { const cfg={llm_provider:$('cfg-llm-provider').value,openai_api_key:$('cfg-openai-key').value,openai_model:$('cfg-openai-model').value,gemini_api_key:$('cfg-gemini-key').value,gemini_model:$('cfg-gemini-model').value,claude_api_key:$('cfg-claude-key').value,claude_model:$('cfg-claude-model').value,openrouter_api_key:$('cfg-openrouter-key').value,openrouter_model:$('cfg-openrouter-model').value,local_llm_url:$('cfg-local-url').value,local_model:$('cfg-local-model').value,embedding_model:$('cfg-embedding-model').value,temperature:$('cfg-temperature').value,max_retrieved_chunks:$('cfg-max-chunks').value,similarity_threshold:$('cfg-threshold').value,streaming_enabled:$('cfg-streaming').checked?'1':'0'}; for(const k of Object.keys(cfg)){if(cfg[k]?.startsWith('•'))delete cfg[k];} try{await api.patch('/admin/config',cfg);toast('Saved','success');}catch(err){toast(err.message,'error');} }
   async function savePrompt() { try{await api.put('/admin/config/prompt',{prompt:$('cfg-system-prompt').value});toast('Saved','success');}catch(err){toast(err.message,'error');} }
 
   // CHAT LOGS
@@ -727,22 +611,14 @@
     else if (action === 'send-prompt') { $('chat-input').value = btn.dataset.prompt; $('chat-input').focus(); }
     else if (action === 'toggle-role') { api.patch('/admin/users/'+btn.dataset.uid+'/role',{role:btn.dataset.role}).then(()=>{toast('Changed','success');loadUsers();}).catch(err=>toast(err.message,'error')); }
     else if (action === 'delete-user') { api.del('/admin/users/'+btn.dataset.uid).then(()=>{toast('Removed','success');loadUsers();}).catch(err=>toast(err.message,'error')); }
-    else if (action === 'delete-group') { if(confirm('Delete this source group and all its pages? This cannot be undone.')){api.del('/documents/groups/'+btn.dataset.gid).then(()=>{toast('Group deleted','success');loadDocuments();}).catch(err=>toast(err.message,'error'));} }
-    else if (action === 'sync-group') { syncGroup(btn.dataset.gid, btn); }
   });
 
   // Toggle handlers (checkbox change events)
   document.addEventListener('change', function(e) {
-    if (e.target.dataset.action === 'toggle-group') {
-      const gid = e.target.dataset.gid;
-      api.patch('/documents/groups/'+gid+'/toggle').then(r => {
-        const g = sourceGroups.find(x => x.id === gid);
-        if (g) g.enabled = r.enabled ? 1 : 0;
-        // Also update local doc state
-        state.documents.forEach(d => { if (d.group_id === gid) d.enabled = r.enabled ? 1 : 0; });
-        renderDocs();
-        toast(r.enabled ? 'Source enabled' : 'Source disabled', 'success');
-      }).catch(err => toast(err.message, 'error'));
+    if (e.target.dataset.action === 'select-doc') {
+      const did = e.target.dataset.did;
+      if (e.target.checked) { selectedDocs.add(did); } else { selectedDocs.delete(did); }
+      updateBatchBar();
     }
     if (e.target.dataset.action === 'toggle-doc') {
       const did = e.target.dataset.did;
@@ -788,16 +664,17 @@
     $('chat-search').addEventListener('input', async function(){const s=this.value.trim();try{state.conversations=await api.get('/chat/conversations'+(s?'?search='+encodeURIComponent(s):''));renderConvos();}catch{}});
     $('upload-btn')?.addEventListener('click', openModal);
     $('reprocess-all-btn')?.addEventListener('click', reprocessAll);
+    $('batch-select-all')?.addEventListener('click', function() {
+      state.documents.forEach(d => selectedDocs.add(d.id));
+      renderDocs();
+    });
+    $('batch-deselect')?.addEventListener('click', function() {
+      selectedDocs.clear();
+      renderDocs();
+    });
+    $('batch-delete-btn')?.addEventListener('click', batchDelete);
     $('add-url-btn')?.addEventListener('click', addUrl);
     $('url-input')?.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } });
-    $('sitemap-discover-btn')?.addEventListener('click', sitemapDiscover);
-    $('sitemap-url-input')?.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); sitemapDiscover(); } });
-    $('sitemap-import-btn')?.addEventListener('click', sitemapImport);
-    $('sitemap-cancel-btn')?.addEventListener('click', function() {
-      $('sitemap-results').classList.add('hidden');
-      $('sitemap-url-input').value = '';
-      sitemapDiscoveredUrl = null;
-    });
     $('upload-form')?.addEventListener('submit', uploadDoc);
     $('doc-search')?.addEventListener('input', function(){renderDocs(this.value.toLowerCase());});
     const dz=$('dropzone'),fi=$('file-input');

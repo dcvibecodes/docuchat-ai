@@ -53,7 +53,7 @@ const config = {
 
   upload: {
     maxFileSizeMB: parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 50,
-    allowedExtensions: (process.env.ALLOWED_EXTENSIONS || 'pdf,docx,txt,md,xlsx,xls,csv').split(','),
+    allowedExtensions: (process.env.ALLOWED_EXTENSIONS || 'pdf,docx,txt,md,xlsx,xls,csv,sqlite,db,sqlite3,sql').split(','),
     directory: 'uploads'
   },
 
