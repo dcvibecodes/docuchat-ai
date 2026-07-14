@@ -9,9 +9,28 @@ const fs = require('fs');
 
 const config = require('./config');
 const logger = require('./utils/logger');
-const { initDatabase, startAutoSave, closeConnection } = require('./database/connection');
+const { initDatabase, startAutoSave, closeConnection, saveDatabase } = require('./database/connection');
 const { migrate } = require('./database/migrate');
 const errorHandler = require('./middleware/errorHandler');
+
+// ── Crash Protection ──
+// Prevent unhandled promise rejections from killing the server
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Promise Rejection', { reason: reason?.message || String(reason), stack: reason?.stack });
+  // Do NOT exit — keep the server alive
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception', { error: err.message, stack: err.stack });
+  // Save DB before potential instability
+  try { saveDatabase(); } catch (e) { /* best effort */ }
+  // For truly fatal errors, exit after saving — PM2 will restart
+  if (err.message?.includes('ENOMEM') || err.message?.includes('allocation failed')) {
+    console.error('FATAL: Out of memory. Exiting.');
+    process.exit(1);
+  }
+  // For non-fatal uncaught exceptions, keep running
+});
 
 // Routes
 const authRoutes = require('./routes/auth');

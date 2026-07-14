@@ -1,4 +1,4 @@
-# DocuChat AI v2.4.0
+# DocuChat AI v2.5.0
 
 Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, import entire sites via sitemap, ask questions, get answers grounded only in your sources with citations.
 
@@ -22,9 +22,10 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Multi-file drag-and-drop upload** with progress indicator
 - **Web URL scraping** — paste a URL to scrape and index content as a document source
 - **Sitemap import (Tech Admin)** — two-phase architecture: scrape first, then embed one-by-one to prevent server overload
-- **Source groups** — sitemap imports appear as a single group block, not individual entries
-- **Sync** — re-scan a sitemap to find and import only new pages since last import
-- **Live progress** — real-time progress indicator for sitemap import (scraping phase → processing phase) with count
+- **Source groups** — sitemap imports appear as a single group block with aggregate status (ready/processing/error counts)
+- **Sync** — re-scan a sitemap to find and import only new pages since last import (global dedup — never reimports existing URLs)
+- **Cancel import** — stop a running sitemap import at any time; already-scraped pages are preserved
+- **Live progress** — real-time progress indicator for sitemap import (scraping phase → processing phase) with count and cancel button
 - **Per-document progress bar** — visual indicator on each "processing" document showing extraction → chunking → embedding stages
 - **Enable/disable toggle** — turn any document or source group on/off instantly without re-processing; disabled sources are excluded from chat
 - **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV, Web URLs
@@ -55,7 +56,8 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Conflict resolution** — latest document/update wins, conflicts reported in responses
 - **No build step** — vanilla JS single-page app frontend
 - **Safe migrations** — new schema changes applied non-destructively on startup; existing data preserved
-- **Server stability** — all network calls have hard timeouts, import lock prevents concurrent overload, periodic DB saves during long operations
+- **Server stability** — unhandledRejection/uncaughtException handlers prevent crashes; all network calls have hard timeouts; import lock prevents concurrent overload; 200ms breathing delay between embeddings; periodic DB saves during long operations
+- **Cancel support** — running sitemap imports can be stopped mid-operation without data loss
 
 ## Tech Stack
 
@@ -81,7 +83,7 @@ Open `http://localhost:3000`. First visit shows a one-time setup screen to creat
 3. Wait for "ready" status
 4. **Chat** tab → ask questions
 
-## Upgrading from v2.2.0 / v2.3.0
+## Upgrading from v2.3.0 / v2.4.0
 
 No manual steps required. The migration runs automatically on startup and:
 - Creates the `source_groups` table
@@ -89,7 +91,15 @@ No manual steps required. The migration runs automatically on startup and:
 - Removes dependency on the `email` column in user creation (fixes first-login error on fresh databases)
 - All existing data, documents, embeddings, and conversations are preserved
 - No re-indexing or re-embedding needed
-- Previously imported sitemap URLs (e.g., 671 already imported) remain as-is and continue to work; they won't have a source group assigned but will function normally as individual URL documents
+- Previously imported sitemap URLs (e.g., 671 already imported) remain as-is; on next import/sync they are auto-detected as existing and assigned to the new source group
+- Server crash protection added: unhandled promise rejections no longer kill the process
+
+**Port configuration note:** The app reads `PORT` from environment variables. If you use PM2, ensure the port is set in the PM2 ecosystem config (not just the `.env` file) so restarts use the correct port:
+```bash
+pm2 start src/index.js --name docuchat -- --port 3005
+# Or in ecosystem.config.js:
+# env: { PORT: 3005 }
+```
 
 ## Environment Variables
 
@@ -171,6 +181,7 @@ document-chatbot/
 ### Sitemap Import (Tech Admin)
 - `POST /api/documents/sitemap/discover` — Discover URLs from sitemap or domain
 - `POST /api/documents/sitemap/import` — Start two-phase background import
+- `POST /api/documents/sitemap/cancel` — Cancel a running import (stops after current item)
 - `GET /api/documents/sitemap/progress` — Poll import progress (phase, completed, total, failed)
 
 ### Chat

@@ -10,6 +10,26 @@ class SourceGroup {
     return db.all('SELECT * FROM source_groups ORDER BY created_at DESC');
   }
 
+  static findAllWithStats() {
+    // Return groups with aggregated document status counts
+    const groups = db.all('SELECT * FROM source_groups ORDER BY created_at DESC');
+    for (const group of groups) {
+      const stats = db.get(`
+        SELECT 
+          COUNT(*) as total,
+          SUM(CASE WHEN status = 'ready' THEN 1 ELSE 0 END) as ready,
+          SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing,
+          SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors
+        FROM documents WHERE group_id = ?
+      `, [group.id]);
+      group.doc_count = stats?.total || 0;
+      group.ready_count = stats?.ready || 0;
+      group.processing_count = stats?.processing || 0;
+      group.error_count = stats?.errors || 0;
+    }
+    return groups;
+  }
+
   static findByUser(userId) {
     return db.all('SELECT * FROM source_groups WHERE user_id = ? ORDER BY created_at DESC', [userId]);
   }
@@ -29,6 +49,12 @@ class SourceGroup {
 
   static incrementDocCount(id, amount = 1) {
     db.run('UPDATE source_groups SET doc_count = doc_count + ? WHERE id = ?', [amount, id]);
+  }
+
+  static updateDocCount(id) {
+    // Recount actual documents in this group
+    const row = db.get('SELECT COUNT(*) as count FROM documents WHERE group_id = ?', [id]);
+    db.run('UPDATE source_groups SET doc_count = ? WHERE id = ?', [row?.count || 0, id]);
   }
 
   static delete(id) {

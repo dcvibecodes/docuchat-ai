@@ -257,7 +257,11 @@
       state.documents.filter(d => d.group_id === g.id).forEach(d => groupedDocIds.add(d.id));
     }
     const ungrouped = state.documents.filter(d => !groupedDocIds.has(d.id));
-    const filtered = ungrouped.filter(d => !search || d.original_name.toLowerCase().includes(search));
+    // Split ungrouped into files vs URLs
+    const ungroupedFiles = ungrouped.filter(d => d.file_type !== 'url');
+    const ungroupedUrls = ungrouped.filter(d => d.file_type === 'url');
+    const filteredFiles = ungroupedFiles.filter(d => !search || d.original_name.toLowerCase().includes(search));
+    const filteredUrls = ungroupedUrls.filter(d => !search || d.original_name.toLowerCase().includes(search));
 
     let html = '';
 
@@ -265,24 +269,53 @@
     const filteredGroups = sourceGroups.filter(g => !search || g.name.toLowerCase().includes(search));
     if (filteredGroups.length) {
       html += filteredGroups.map(g => {
-        const docCount = state.documents.filter(d => d.group_id === g.id).length || g.doc_count;
+        const docCount = g.doc_count || state.documents.filter(d => d.group_id === g.id).length;
         const enabledClass = g.enabled ? '' : ' disabled';
         const toggleTitle = g.enabled ? 'Disable this source' : 'Enable this source';
+        // Aggregate status from server
+        let statusHtml = '';
+        if (g.processing_count > 0) {
+          statusHtml = '<span class="doc-badge processing">' + g.processing_count + ' processing</span>';
+        } else if (g.error_count > 0 && g.ready_count > 0) {
+          statusHtml = '<span class="doc-badge ready">' + g.ready_count + ' ready</span><span class="doc-badge error">' + g.error_count + ' error</span>';
+        } else if (g.error_count > 0) {
+          statusHtml = '<span class="doc-badge error">' + g.error_count + ' errors</span>';
+        } else if (g.ready_count > 0) {
+          statusHtml = '<span class="doc-badge ready">ready</span>';
+        }
         return '<div class="doc-row source-group-row'+enabledClass+'">'
           + '<div class="doc-icon url">sitemap</div>'
           + '<div class="doc-info"><div class="doc-name">'+esc(g.name)+'</div><div class="doc-meta-line"><span>'+docCount+' pages</span><span>'+esc(g.type)+'</span><span>'+fmtDate(g.created_at)+'</span></div></div>'
+          + statusHtml
           + '<div class="doc-row-actions"><button class="doc-delete-btn" data-action="sync-group" data-gid="'+g.id+'" style="color:var(--primary);border-color:var(--primary)">Sync</button><label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(g.enabled?'checked':'')+' data-action="toggle-group" data-gid="'+g.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-group" data-gid="'+g.id+'">Delete</button></div>'
           + '</div>';
       }).join('');
     }
 
-    // Render ungrouped documents
-    if (!filtered.length && !filteredGroups.length) {
+    // Render ungrouped URLs as a pseudo-group if there are any
+    if (filteredUrls.length) {
+      const urlReady = filteredUrls.filter(d => d.status === 'ready').length;
+      const urlProcessing = filteredUrls.filter(d => d.status === 'processing').length;
+      const urlError = filteredUrls.filter(d => d.status === 'error').length;
+      let urlStatus = '';
+      if (urlProcessing > 0) urlStatus = '<span class="doc-badge processing">' + urlProcessing + ' processing</span>';
+      else if (urlReady > 0) urlStatus = '<span class="doc-badge ready">' + urlReady + ' ready</span>';
+      if (urlError > 0) urlStatus += '<span class="doc-badge error">' + urlError + ' error</span>';
+      html += '<div class="doc-row source-group-row" style="border-left-color:var(--text-faint);">'
+        + '<div class="doc-icon url">url</div>'
+        + '<div class="doc-info"><div class="doc-name">Individual URLs</div><div class="doc-meta-line"><span>' + filteredUrls.length + ' pages</span><span>manually added</span></div></div>'
+        + urlStatus
+        + '<div class="doc-row-actions"></div>'
+        + '</div>';
+    }
+
+    // Render ungrouped file documents
+    if (!filteredFiles.length && !filteredGroups.length && !filteredUrls.length) {
       container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text-faint);font-size:0.76rem;">'+(search?'No match.':'No documents yet.')+'</div>';
       $('storage-info').textContent='';
       return;
     }
-    html += filtered.map(doc => {
+    html += filteredFiles.map(doc => {
       const isNew = state.uploadedThisSession.has(doc.id);
       let badge;
       if (isNew) { badge = '<span class="doc-badge new">new</span>'; }
@@ -401,9 +434,13 @@
         const p = await api.get('/documents/sitemap/progress');
         if (p.running) {
           const phaseLabel = p.phase === 'scraping' ? 'Scraping pages' : 'Processing & embedding';
-          summary.innerHTML = '<strong>' + phaseLabel + ':</strong> ' + p.completed + ' / ' + p.total + (p.failed ? ' (' + p.failed + ' failed)' : '');
+          summary.innerHTML = '<strong>' + phaseLabel + ':</strong> ' + p.completed + ' / ' + p.total + (p.failed ? ' (' + p.failed + ' failed)' : '') + ' <button id="cancel-import-btn" class="doc-delete-btn" style="margin-left:8px;color:var(--danger);border-color:var(--danger)">Cancel</button>';
+          const cancelBtn = $('cancel-import-btn');
+          if (cancelBtn) cancelBtn.onclick = cancelImport;
         } else {
-          const doneLabel = p.phase === 'error' ? 'Import stopped due to error' : 'Import complete';
+          let doneLabel = 'Import complete';
+          if (p.phase === 'error') doneLabel = 'Import stopped due to error';
+          else if (p.phase === 'cancelled') doneLabel = 'Import cancelled';
           summary.innerHTML = '<strong>' + doneLabel + ':</strong> ' + p.completed + ' / ' + p.total + (p.failed ? ' (' + p.failed + ' failed)' : '');
           clearInterval(importPollTimer);
           importPollTimer = null;
@@ -413,6 +450,13 @@
         }
       } catch { clearInterval(importPollTimer); importPollTimer = null; }
     }, 3000);
+  }
+
+  async function cancelImport() {
+    try {
+      await api.post('/documents/sitemap/cancel');
+      toast('Cancelling import...', 'info');
+    } catch(err) { toast(err.message, 'error'); }
   }
 
   async function syncGroup(groupId, btnEl) {

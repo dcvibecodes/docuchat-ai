@@ -12,9 +12,8 @@ class DocumentController {
   static list(req, res, next) {
     try {
       const { search, status } = req.query;
-      // Admins see all documents; regular users see their own
       let documents;
-      if (req.session.role === 'admin') {
+      if (req.session.role === 'admin' || req.session.role === 'techadmin') {
         documents = Document.findAll({ search, status });
       } else {
         documents = Document.findByUser(req.session.userId, { search, status });
@@ -31,29 +30,22 @@ class DocumentController {
         throw new ValidationError('No file uploaded');
       }
 
-      // Auto-use the user's single knowledge base
       const kb = KnowledgeBase.getDefaultForUser(req.session.userId);
       if (!kb) throw new Error('No knowledge base found for user');
 
       const ext = path.extname(req.file.originalname).toLowerCase().replace('.', '');
 
-      // Check if a document with the same original_name already exists — delete old one first
+      // Replace existing document with same name
       const existing = Document.findByOriginalName(req.file.originalname);
       if (existing) {
-        // Delete old file from disk
         const oldFilePath = path.resolve('uploads', existing.user_id, existing.filename);
-        if (fs.existsSync(oldFilePath)) {
-          fs.unlinkSync(oldFilePath);
-        }
-        // Update storage and KB count
+        if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
         User.updateStorageUsed(existing.user_id, -existing.file_size);
         KnowledgeBase.decrementDocCount(existing.knowledge_base_id);
-        // Delete from DB (cascades to chunks and embeddings)
         Document.delete(existing.id);
         logger.info('Deleted existing document before re-upload', { originalName: req.file.originalname, oldId: existing.id });
       }
 
-      // Create document record
       const doc = Document.create({
         userId: req.session.userId,
         knowledgeBaseId: kb.id,
@@ -63,11 +55,9 @@ class DocumentController {
         fileSize: req.file.size
       });
 
-      // Update user storage
       User.updateStorageUsed(req.session.userId, req.file.size);
       KnowledgeBase.incrementDocCount(kb.id);
 
-      // Trigger async processing (will be implemented in Phase 2)
       const { processDocument } = require('../services/documentProcessor');
       processDocument(doc.id).catch(err => {
         logger.error('Document processing failed', { docId: doc.id, error: err.message });
@@ -76,10 +66,7 @@ class DocumentController {
 
       res.status(201).json(doc);
     } catch (err) {
-      // Clean up uploaded file on error
-      if (req.file) {
-        try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ }
-      }
+      if (req.file) { try { fs.unlinkSync(req.file.path); } catch (e) { /* ignore */ } }
       next(err);
     }
   }
@@ -88,42 +75,34 @@ class DocumentController {
     try {
       const doc = Document.findById(req.params.id);
       if (!doc) throw new NotFoundError('Document');
-      if (doc.user_id !== req.session.userId) throw new AuthorizationError();
+      if (doc.user_id !== req.session.userId && req.session.role !== 'admin' && req.session.role !== 'techadmin') throw new AuthorizationError();
       res.json(doc);
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   }
 
   static rename(req, res, next) {
     try {
       const { name } = req.body;
       if (!name || !name.trim()) throw new ValidationError('Name is required');
-
       const doc = Document.findById(req.params.id);
       if (!doc) throw new NotFoundError('Document');
-      if (doc.user_id !== req.session.userId) throw new AuthorizationError();
-
+      if (doc.user_id !== req.session.userId && req.session.role !== 'admin') throw new AuthorizationError();
       Document.rename(doc.id, name.trim());
       res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   }
 
   static async reindex(req, res, next) {
     try {
       const doc = Document.findById(req.params.id);
       if (!doc) throw new NotFoundError('Document');
-      if (req.session.role !== 'admin' && doc.user_id !== req.session.userId) throw new AuthorizationError();
+      if (req.session.role !== 'admin' && req.session.role !== 'techadmin' && doc.user_id !== req.session.userId) throw new AuthorizationError();
 
       Document.updateStatus(doc.id, 'processing');
-
-      // Delete existing chunks and embeddings
+      Document.updateProgress(doc.id, 0);
       Embedding.deleteByDocument(doc.id);
       Chunk.deleteByDocument(doc.id);
 
-      // Re-process
       const { processDocument } = require('../services/documentProcessor');
       processDocument(doc.id).catch(err => {
         logger.error('Reindex failed', { docId: doc.id, error: err.message });
@@ -131,57 +110,38 @@ class DocumentController {
       });
 
       res.json({ success: true, message: 'Re-indexing started' });
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   }
 
   static delete(req, res, next) {
     try {
       const doc = Document.findById(req.params.id);
       if (!doc) throw new NotFoundError('Document');
-      // Admins can delete any document; regular users only their own
-      if (req.session.role !== 'admin' && doc.user_id !== req.session.userId) throw new AuthorizationError();
+      if (req.session.role !== 'admin' && req.session.role !== 'techadmin' && doc.user_id !== req.session.userId) throw new AuthorizationError();
 
-      // Delete file from disk
       const filePath = path.resolve('uploads', doc.user_id, doc.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
-      // Update storage
       User.updateStorageUsed(doc.user_id, -doc.file_size);
       KnowledgeBase.decrementDocCount(doc.knowledge_base_id);
-
-      // Delete from database (cascades to chunks and embeddings)
       Document.delete(doc.id);
 
       res.json({ success: true });
-    } catch (err) {
-      next(err);
-    }
+    } catch (err) { next(err); }
   }
 
   static async importUrl(req, res, next) {
     try {
       const { url } = req.body;
-      if (!url || !url.trim()) {
-        throw new ValidationError('URL is required');
-      }
+      if (!url || !url.trim()) throw new ValidationError('URL is required');
 
-      // Auto-add https:// if no protocol
       let fullUrl = url.trim();
-      if (!fullUrl.match(/^https?:\/\//i)) {
-        fullUrl = 'https://' + fullUrl;
-      }
-
-      // Validate URL format
+      if (!fullUrl.match(/^https?:\/\//i)) fullUrl = 'https://' + fullUrl;
       try { new URL(fullUrl); } catch { throw new ValidationError('Invalid URL format'); }
 
       const kb = KnowledgeBase.getDefaultForUser(req.session.userId);
       if (!kb) throw new Error('No knowledge base found');
 
-      // Check if this URL was already added
       const existing = Document.findByOriginalName(fullUrl);
       if (existing) {
         Embedding.deleteByDocument(existing.id);
@@ -189,24 +149,19 @@ class DocumentController {
         Document.delete(existing.id);
       }
 
-      // Scrape the URL
       const { scrapeUrl } = require('../services/webScraper');
       const { title, text } = await scrapeUrl(fullUrl);
 
-      // Save the text content as a virtual file
-      const fs = require('fs');
-      const path = require('path');
       const { v4: uuidv4 } = require('uuid');
       const filename = uuidv4() + '.txt';
       const userDir = path.resolve('uploads', req.session.userId);
       if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
       fs.writeFileSync(path.join(userDir, filename), text, 'utf-8');
 
-      // Create document record (use URL as original_name for identification)
       const doc = Document.create({
         userId: req.session.userId,
         knowledgeBaseId: kb.id,
-        filename: filename,
+        filename,
         originalName: fullUrl,
         fileType: 'url',
         fileSize: Buffer.byteLength(text, 'utf-8')
@@ -214,7 +169,6 @@ class DocumentController {
 
       KnowledgeBase.incrementDocCount(kb.id);
 
-      // Process (chunk + embed)
       const { processDocument } = require('../services/documentProcessor');
       processDocument(doc.id).catch(err => {
         Document.updateStatus(doc.id, 'error', err.message);
@@ -231,50 +185,48 @@ class DocumentController {
       for (const doc of documents) {
         if (doc.status === 'ready' || doc.status === 'error') {
           Document.updateStatus(doc.id, 'processing');
+          Document.updateProgress(doc.id, 0);
           Embedding.deleteByDocument(doc.id);
           Chunk.deleteByDocument(doc.id);
-          const { processDocument } = require('../services/documentProcessor');
-          processDocument(doc.id).catch(err => {
-            Document.updateStatus(doc.id, 'error', err.message);
-          });
           count++;
         }
       }
+      // Process serially in background
+      const { processDocument, breathe } = require('../services/documentProcessor');
+      const { saveDatabase } = require('../database/connection');
+      const toProcess = documents.filter(d => d.status === 'ready' || d.status === 'error').map(d => d.id);
+      (async () => {
+        for (let i = 0; i < toProcess.length; i++) {
+          try { await processDocument(toProcess[i]); } catch (e) { /* already logged */ }
+          await breathe(200);
+          if (i % 5 === 0) saveDatabase();
+        }
+        saveDatabase();
+      })().catch(err => logger.error('ReprocessAll crashed', { error: err.message }));
+
       res.json({ success: true, message: `Re-processing ${count} documents with new embedding model` });
     } catch (err) { next(err); }
   }
 
   static async sitemapDiscover(req, res, next) {
     try {
-      if (req.session.role !== 'techadmin') {
-        throw new AuthorizationError('Only tech admins can import sitemaps');
-      }
+      if (req.session.role !== 'techadmin') throw new AuthorizationError('Only tech admins can import sitemaps');
 
       const { url } = req.body;
-      if (!url || !url.trim()) {
-        throw new ValidationError('Sitemap URL or domain is required');
-      }
+      if (!url || !url.trim()) throw new ValidationError('Sitemap URL or domain is required');
 
       const { fetchSitemap, detectSitemap } = require('../services/sitemapService');
       let sitemapUrl = url.trim();
 
-      // If it doesn't look like a sitemap URL, try to auto-detect
       if (!sitemapUrl.match(/sitemap.*\.(xml|txt)$/i)) {
         const detected = await detectSitemap(sitemapUrl);
-        if (!detected) {
-          throw new ValidationError('Could not find a sitemap at this domain. Try providing the direct sitemap URL.');
-        }
+        if (!detected) throw new ValidationError('Could not find a sitemap at this domain. Try providing the direct sitemap URL.');
         sitemapUrl = detected;
       }
 
-      // Fetch and parse the sitemap
       const urls = await fetchSitemap(sitemapUrl);
+      if (!urls.length) throw new ValidationError('Sitemap found but contains no URLs');
 
-      if (!urls.length) {
-        throw new ValidationError('Sitemap found but contains no URLs');
-      }
-
-      // Get the hard cap from config
       const SystemConfig = require('../models/SystemConfig');
       const maxCap = parseInt(SystemConfig.get('sitemap_max_urls') || '500', 10);
 
@@ -282,50 +234,50 @@ class DocumentController {
         sitemapUrl,
         totalUrls: urls.length,
         maxCap: maxCap || null,
-        urls: urls.slice(0, 50).map(u => u.loc), // Preview first 50
+        urls: urls.slice(0, 50).map(u => u.loc),
         hasMore: urls.length > 50
       });
     } catch (err) { next(err); }
   }
 
-  // Global import state — prevents duplicate concurrent imports
+  // ── Import state ──
   static _importRunning = false;
+  static _cancelRequested = false;
   static _importProgress = { running: false, phase: '', total: 0, completed: 0, failed: 0, groupId: null };
 
   static getImportProgress(req, res, next) {
     res.json(DocumentController._importProgress);
   }
 
+  static cancelImport(req, res, next) {
+    try {
+      if (!DocumentController._importRunning) {
+        return res.json({ success: false, message: 'No import is currently running' });
+      }
+      DocumentController._cancelRequested = true;
+      res.json({ success: true, message: 'Cancel requested. Import will stop after current item.' });
+    } catch (err) { next(err); }
+  }
+
   static async sitemapImport(req, res, next) {
     try {
-      if (req.session.role !== 'techadmin') {
-        throw new AuthorizationError('Only tech admins can import sitemaps');
-      }
-
-      if (DocumentController._importRunning) {
-        throw new ValidationError('A sitemap import is already running. Please wait for it to finish.');
-      }
+      if (req.session.role !== 'techadmin') throw new AuthorizationError('Only tech admins can import sitemaps');
+      if (DocumentController._importRunning) throw new ValidationError('A sitemap import is already running. Please wait or cancel it.');
 
       const { sitemapUrl, limit, pathFilter } = req.body;
-      if (!sitemapUrl) {
-        throw new ValidationError('Sitemap URL is required');
-      }
+      if (!sitemapUrl) throw new ValidationError('Sitemap URL is required');
 
       const { fetchSitemap } = require('../services/sitemapService');
       const SourceGroup = require('../models/SourceGroup');
       const SystemConfig = require('../models/SystemConfig');
       const maxCap = parseInt(SystemConfig.get('sitemap_max_urls') || '500', 10);
 
-      // Fetch all URLs
       let urls = await fetchSitemap(sitemapUrl);
 
-      // Apply path filter if provided
       if (pathFilter && pathFilter.trim()) {
-        const filter = pathFilter.trim();
-        urls = urls.filter(u => u.loc.includes(filter));
+        urls = urls.filter(u => u.loc.includes(pathFilter.trim()));
       }
 
-      // Apply limit (0 = no cap)
       let effectiveLimit;
       if (limit === 'all') {
         effectiveLimit = maxCap > 0 ? Math.min(urls.length, maxCap) : urls.length;
@@ -337,7 +289,6 @@ class DocumentController {
 
       logger.info('Starting sitemap import', { sitemapUrl, total: urls.length, importing: toImport.length, pathFilter });
 
-      // Create a source group for this sitemap
       let groupName;
       try { groupName = new URL(sitemapUrl).hostname; } catch { groupName = sitemapUrl; }
       const group = SourceGroup.create({
@@ -353,13 +304,12 @@ class DocumentController {
       const { scrapeUrl } = require('../services/webScraper');
       const { v4: uuidv4 } = require('uuid');
       const { saveDatabase } = require('../database/connection');
-      const { processDocument } = require('../services/documentProcessor');
+      const { processDocument, breathe } = require('../services/documentProcessor');
 
-      // Set lock and progress
       DocumentController._importRunning = true;
+      DocumentController._cancelRequested = false;
       DocumentController._importProgress = { running: true, phase: 'scraping', total: toImport.length, completed: 0, failed: 0, groupId: group.id };
 
-      // Process async — two phases
       (async () => {
         const savedDocIds = [];
         let scraped = 0;
@@ -367,24 +317,35 @@ class DocumentController {
 
         // ═══ PHASE 1: Scrape all URLs (no embedding) ═══
         for (let i = 0; i < toImport.length; i++) {
+          // Check cancel
+          if (DocumentController._cancelRequested) {
+            logger.info('Import cancelled by user during scraping', { scraped, failed });
+            break;
+          }
+
           const entry = toImport[i];
           try {
             const fullUrl = entry.loc;
 
-            // Skip if already imported
+            // GLOBAL check — skip if URL exists anywhere in the DB
             const existing = Document.findByOriginalName(fullUrl);
-            if (existing) { scraped++; continue; }
+            if (existing) {
+              // If it exists but has no group, assign it to this group
+              if (!existing.group_id) {
+                Document.setGroupId(existing.id, group.id);
+              }
+              scraped++;
+              DocumentController._importProgress.completed = scraped + failed;
+              continue;
+            }
 
-            // Scrape
             const { title, text } = await scrapeUrl(fullUrl);
 
-            // Save file
             const filename = uuidv4() + '.txt';
             const userDir = path.resolve('uploads', req.session.userId);
             if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
             fs.writeFileSync(path.join(userDir, filename), text, 'utf-8');
 
-            // Create document record (status stays 'processing')
             const doc = Document.create({
               userId: req.session.userId,
               knowledgeBaseId: kb.id,
@@ -406,45 +367,64 @@ class DocumentController {
           DocumentController._importProgress.completed = scraped + failed;
           DocumentController._importProgress.failed = failed;
 
-          // Save DB periodically
           if (i % 20 === 0) saveDatabase();
+          // Small breath between scrapes to keep event loop responsive
+          if (i % 5 === 0) await breathe(50);
         }
 
         saveDatabase();
         logger.info('Sitemap scrape phase complete', { scraped, failed, docsToProcess: savedDocIds.length });
 
         // ═══ PHASE 2: Process documents one by one (chunk + embed) ═══
-        DocumentController._importProgress.phase = 'processing';
-        DocumentController._importProgress.total = savedDocIds.length;
-        DocumentController._importProgress.completed = 0;
-        DocumentController._importProgress.failed = 0;
+        if (!DocumentController._cancelRequested && savedDocIds.length > 0) {
+          DocumentController._importProgress.phase = 'processing';
+          DocumentController._importProgress.total = savedDocIds.length;
+          DocumentController._importProgress.completed = 0;
+          DocumentController._importProgress.failed = 0;
 
-        let processed = 0;
-        let processFailed = 0;
-        for (const docId of savedDocIds) {
-          try {
-            await processDocument(docId);
-            processed++;
-          } catch (err) {
-            processFailed++;
-            // processDocument already sets error status
+          let processed = 0;
+          let processFailed = 0;
+          for (const docId of savedDocIds) {
+            if (DocumentController._cancelRequested) {
+              logger.info('Import cancelled by user during processing', { processed, processFailed });
+              break;
+            }
+
+            try {
+              await processDocument(docId);
+              processed++;
+            } catch (err) {
+              processFailed++;
+            }
+            DocumentController._importProgress.completed = processed + processFailed;
+            DocumentController._importProgress.failed = processFailed;
+
+            if (processed % 5 === 0) saveDatabase();
+            // Breathe between documents — prevents memory buildup
+            await breathe(200);
           }
-          DocumentController._importProgress.completed = processed + processFailed;
-          DocumentController._importProgress.failed = processFailed;
-
-          // Save DB every 5 docs
-          if (processed % 5 === 0) saveDatabase();
         }
 
         // Final cleanup
-        SourceGroup.incrementDocCount(group.id, savedDocIds.length);
+        SourceGroup.updateDocCount(group.id);
         saveDatabase();
         DocumentController._importRunning = false;
-        DocumentController._importProgress = { running: false, phase: 'done', total: savedDocIds.length, completed: processed + processFailed, failed: processFailed, groupId: group.id };
-        logger.info('Sitemap import complete', { sitemapUrl, scraped, processed, processFailed, groupId: group.id });
+        const wasCancelled = DocumentController._cancelRequested;
+        DocumentController._cancelRequested = false;
+        DocumentController._importProgress = {
+          running: false,
+          phase: wasCancelled ? 'cancelled' : 'done',
+          total: savedDocIds.length,
+          completed: DocumentController._importProgress.completed,
+          failed: DocumentController._importProgress.failed,
+          groupId: group.id
+        };
+        logger.info('Sitemap import finished', { sitemapUrl, phase: wasCancelled ? 'cancelled' : 'done', groupId: group.id });
       })().catch(err => {
         logger.error('Sitemap import crashed', { error: err.message, stack: err.stack });
+        saveDatabase();
         DocumentController._importRunning = false;
+        DocumentController._cancelRequested = false;
         DocumentController._importProgress.running = false;
         DocumentController._importProgress.phase = 'error';
       });
@@ -456,7 +436,7 @@ class DocumentController {
   static listGroups(req, res, next) {
     try {
       const SourceGroup = require('../models/SourceGroup');
-      const groups = SourceGroup.findAll();
+      const groups = SourceGroup.findAllWithStats();
       res.json(groups);
     } catch (err) { next(err); }
   }
@@ -469,7 +449,6 @@ class DocumentController {
 
       const newEnabled = group.enabled ? 0 : 1;
       SourceGroup.setEnabled(req.params.id, newEnabled);
-      // Also toggle all documents in the group
       Document.setGroupEnabled(req.params.id, newEnabled);
 
       res.json({ success: true, enabled: !!newEnabled });
@@ -478,13 +457,8 @@ class DocumentController {
 
   static async syncGroup(req, res, next) {
     try {
-      if (req.session.role !== 'techadmin') {
-        throw new AuthorizationError('Only tech admins can sync sitemaps');
-      }
-
-      if (DocumentController._importRunning) {
-        throw new ValidationError('An import is already running. Please wait for it to finish.');
-      }
+      if (req.session.role !== 'techadmin') throw new AuthorizationError('Only tech admins can sync sitemaps');
+      if (DocumentController._importRunning) throw new ValidationError('An import is already running. Please wait or cancel it.');
 
       const SourceGroup = require('../models/SourceGroup');
       const group = SourceGroup.findById(req.params.id);
@@ -494,12 +468,11 @@ class DocumentController {
       const { fetchSitemap } = require('../services/sitemapService');
       const allUrls = await fetchSitemap(group.url);
 
-      // Find which URLs are already imported in this group
+      // GLOBAL check — find URLs that don't exist ANYWHERE in the database (not just this group)
       const db = require('../database/db');
-      const existingDocs = db.all('SELECT original_name FROM documents WHERE group_id = ?', [group.id]);
+      const existingDocs = db.all('SELECT original_name FROM documents');
       const existingNames = new Set(existingDocs.map(d => d.original_name));
 
-      // Filter to only new URLs
       const newUrls = allUrls.filter(u => !existingNames.has(u.loc));
 
       if (!newUrls.length) {
@@ -512,9 +485,10 @@ class DocumentController {
       const { scrapeUrl } = require('../services/webScraper');
       const { v4: uuidv4 } = require('uuid');
       const { saveDatabase } = require('../database/connection');
-      const { processDocument } = require('../services/documentProcessor');
+      const { processDocument, breathe } = require('../services/documentProcessor');
 
       DocumentController._importRunning = true;
+      DocumentController._cancelRequested = false;
       DocumentController._importProgress = { running: true, phase: 'scraping', total: newUrls.length, completed: 0, failed: 0, groupId: group.id };
 
       (async () => {
@@ -524,6 +498,8 @@ class DocumentController {
 
         // Phase 1: Scrape only
         for (let i = 0; i < newUrls.length; i++) {
+          if (DocumentController._cancelRequested) break;
+
           try {
             const { title, text } = await scrapeUrl(newUrls[i].loc);
             const filename = uuidv4() + '.txt';
@@ -551,36 +527,52 @@ class DocumentController {
           DocumentController._importProgress.completed = scraped + failed;
           DocumentController._importProgress.failed = failed;
           if (i % 20 === 0) saveDatabase();
+          if (i % 5 === 0) await breathe(50);
         }
 
         saveDatabase();
 
         // Phase 2: Process one by one
-        DocumentController._importProgress.phase = 'processing';
-        DocumentController._importProgress.total = savedDocIds.length;
-        DocumentController._importProgress.completed = 0;
-        DocumentController._importProgress.failed = 0;
+        if (!DocumentController._cancelRequested && savedDocIds.length > 0) {
+          DocumentController._importProgress.phase = 'processing';
+          DocumentController._importProgress.total = savedDocIds.length;
+          DocumentController._importProgress.completed = 0;
+          DocumentController._importProgress.failed = 0;
 
-        let processed = 0;
-        let processFailed = 0;
-        for (const docId of savedDocIds) {
-          try {
-            await processDocument(docId);
-            processed++;
-          } catch { processFailed++; }
-          DocumentController._importProgress.completed = processed + processFailed;
-          DocumentController._importProgress.failed = processFailed;
-          if (processed % 5 === 0) saveDatabase();
+          let processed = 0;
+          let processFailed = 0;
+          for (const docId of savedDocIds) {
+            if (DocumentController._cancelRequested) break;
+            try {
+              await processDocument(docId);
+              processed++;
+            } catch { processFailed++; }
+            DocumentController._importProgress.completed = processed + processFailed;
+            DocumentController._importProgress.failed = processFailed;
+            if (processed % 5 === 0) saveDatabase();
+            await breathe(200);
+          }
         }
 
-        SourceGroup.incrementDocCount(group.id, savedDocIds.length);
+        SourceGroup.updateDocCount(group.id);
         saveDatabase();
         DocumentController._importRunning = false;
-        DocumentController._importProgress = { running: false, phase: 'done', total: savedDocIds.length, completed: processed + processFailed, failed: processFailed, groupId: group.id };
-        logger.info('Sitemap sync complete', { groupId: group.id, scraped, processed, processFailed });
+        const wasCancelled = DocumentController._cancelRequested;
+        DocumentController._cancelRequested = false;
+        DocumentController._importProgress = {
+          running: false,
+          phase: wasCancelled ? 'cancelled' : 'done',
+          total: savedDocIds.length,
+          completed: DocumentController._importProgress.completed,
+          failed: DocumentController._importProgress.failed,
+          groupId: group.id
+        };
+        logger.info('Sitemap sync complete', { groupId: group.id, scraped, phase: wasCancelled ? 'cancelled' : 'done' });
       })().catch(err => {
         logger.error('Sitemap sync crashed', { error: err.message });
+        saveDatabase();
         DocumentController._importRunning = false;
+        DocumentController._cancelRequested = false;
         DocumentController._importProgress.running = false;
         DocumentController._importProgress.phase = 'error';
       });
@@ -594,7 +586,6 @@ class DocumentController {
       const SourceGroup = require('../models/SourceGroup');
       const group = SourceGroup.findById(req.params.id);
       if (!group) throw new NotFoundError('Source group');
-
       SourceGroup.delete(req.params.id);
       res.json({ success: true });
     } catch (err) { next(err); }
@@ -604,10 +595,8 @@ class DocumentController {
     try {
       const doc = Document.findById(req.params.id);
       if (!doc) throw new NotFoundError('Document');
-
       const newEnabled = doc.enabled ? 0 : 1;
       Document.setEnabled(req.params.id, newEnabled);
-
       res.json({ success: true, enabled: !!newEnabled });
     } catch (err) { next(err); }
   }

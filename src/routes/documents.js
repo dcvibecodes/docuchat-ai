@@ -14,6 +14,7 @@ router.post('/reprocess-all', DocumentController.reprocessAll);
 // Sitemap import (tech admin only)
 router.post('/sitemap/discover', DocumentController.sitemapDiscover);
 router.post('/sitemap/import', DocumentController.sitemapImport);
+router.post('/sitemap/cancel', DocumentController.cancelImport);
 router.get('/sitemap/progress', DocumentController.getImportProgress);
 
 // Source groups

@@ -9,6 +9,11 @@ const { extractText } = require('./extractors');
 const { chunkText } = require('./chunker');
 const { generateEmbeddings } = require('./embeddingService');
 
+// Small delay to let GC and event loop breathe between heavy operations
+function breathe(ms = 100) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function processDocument(documentId) {
   const doc = Document.findById(documentId);
   if (!doc) {
@@ -63,6 +68,9 @@ async function processDocument(documentId) {
     const chunkIds = Chunk.createMany(chunkRecords);
     Document.updateChunkCount(doc.id, chunkIds.length);
 
+    // Breathe before heavy embedding phase
+    await breathe(50);
+
     // Step 4: Generate embeddings (50% → 90%)
     Document.updateProgress(doc.id, 50);
     const embeddingResults = await generateEmbeddings(chunks.map(c => c.content));
@@ -84,6 +92,9 @@ async function processDocument(documentId) {
     // Mark as ready (100%)
     Document.updateStatus(doc.id, 'ready');
     logger.info('Document processing complete', { docId: doc.id, chunks: chunkIds.length });
+
+    // Hint GC after processing each document
+    if (global.gc) { try { global.gc(); } catch (e) { /* ignore */ } }
   } catch (err) {
     logger.error('Document processing failed', { docId: doc.id, error: err.message });
     Document.updateStatus(doc.id, 'error', err.message);
@@ -91,4 +102,4 @@ async function processDocument(documentId) {
   }
 }
 
-module.exports = { processDocument };
+module.exports = { processDocument, breathe };
