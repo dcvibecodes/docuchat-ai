@@ -39,7 +39,7 @@ body {
 .screen.active { display: flex; }
 
 /* ══════════════════════════ AUTH ══════════════════════════ */
-#auth-screen { height: 100vh; align-items: center; justify-content: center; padding: 20px; }
+#auth-screen { height: 100vh; align-items: center; justify-content: center; padding: 20px; padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
 .auth-container { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 12px; padding: 32px; width: 100%; max-width: 380px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
 .auth-header { text-align: center; margin-bottom: 24px; }
 .auth-header .logo { margin-bottom: 12px; }
@@ -71,7 +71,7 @@ body {
 
 /* ══════════════════════════ TOP HEADER ══════════════════════════ */
 #main-app { flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
-.top-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); flex-shrink: 0; position: relative; }
+.top-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface); flex-shrink: 0; position: relative; }
 .top-header-left { display: flex; align-items: center; gap: 8px; flex: 1; }
 .app-title { font-size: 0.78rem; font-weight: 600; }
 .top-nav { display: flex; gap: 2px; background: var(--accent-dim); border-radius: 6px; padding: 2px; position: absolute; left: 50%; transform: translateX(-50%); }
@@ -387,7 +387,7 @@ body.is-techadmin .techadmin-locked::after { display: none; }
   .chat-main { height: 100%; }
   .chat-messages { -webkit-overflow-scrolling: touch; }
 
-  .top-header { padding: 6px 12px; }
+  .top-header { padding: 6px 12px; padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
   .chat-main-header { padding: 8px 12px; }
   .shortcut-hint { display: none; }
   .chat-messages { padding: 12px; }

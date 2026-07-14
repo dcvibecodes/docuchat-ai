@@ -57,6 +57,17 @@
     t = t.replace(/^### (.+)$/gm, '<h4>$1</h4>');
     t = t.replace(/^## (.+)$/gm, '<h3>$1</h3>');
     t = t.replace(/^# (.+)$/gm, '<h3>$1</h3>');
+    // Tables: detect markdown tables and convert to HTML
+    t = t.replace(/(?:^\|.+\|[ \t]*\n\|[-| :]+\|[ \t]*\n(?:\|.+\|[ \t]*\n?)+)/gm, function(match) {
+      const rows = match.trim().split('\n');
+      if (rows.length < 2) return match;
+      const headers = rows[0].split('|').filter(c => c.trim()).map(c => '<th>' + c.trim() + '</th>');
+      const bodyRows = rows.slice(2).map(row => {
+        const cells = row.split('|').filter(c => c.trim()).map(c => '<td>' + c.trim() + '</td>');
+        return '<tr>' + cells.join('') + '</tr>';
+      });
+      return '<table><thead><tr>' + headers.join('') + '</tr></thead><tbody>' + bodyRows.join('') + '</tbody></table>';
+    });
     // Lists: collect consecutive list items (even separated by single blank lines)
     t = t.replace(/(?:^[ \t]*\d+\. .+(?:\n(?:[ \t]+.+)?)*(?:\n\n?)?)+/gm, function(match) {
       const items = match.trim().split(/\n(?=\d+\. )/).map(item => {
@@ -72,6 +83,9 @@
       });
       return '<ul>' + items.join('') + '</ul>';
     });
+    // Clickable URLs (must come after code blocks to avoid linkifying code)
+    t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    t = t.replace(/((?<!")(?<!')|^)(https?:\/\/[^\s<"']+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
     // Paragraphs
     t = t.replace(/\n\n/g, '</p><p>');
     t = t.replace(/\n/g, '<br>');
