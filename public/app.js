@@ -239,6 +239,11 @@
       try { sourceGroups = await api.get('/documents/groups'); } catch { sourceGroups = []; }
       renderDocs();
       startDocPoll();
+      // Check if a sitemap import is running and show progress
+      try {
+        const p = await api.get('/documents/sitemap/progress');
+        if (p.running && !importPollTimer) startImportProgressPoll();
+      } catch {}
     } catch(err){toast(err.message,'error');}
   }
   function startDocPoll() { if(state.documents.some(d=>d.status==='processing')){if(!docPoll) docPoll=setInterval(async()=>{try{state.documents=await api.get('/documents');renderDocs();if(!state.documents.some(d=>d.status==='processing')){clearInterval(docPoll);docPoll=null;}}catch{}},3000);}else{if(docPoll){clearInterval(docPoll);docPoll=null;}} }
@@ -279,7 +284,13 @@
     }
     html += filtered.map(doc => {
       const isNew = state.uploadedThisSession.has(doc.id);
-      const badge = isNew?'<span class="doc-badge new">new</span>':doc.status==='processing'?'<span class="doc-badge processing">processing</span>':doc.status==='error'?'<span class="doc-badge error">error</span>':'<span class="doc-badge ready">ready</span>';
+      let badge;
+      if (isNew) { badge = '<span class="doc-badge new">new</span>'; }
+      else if (doc.status === 'processing') {
+        const pct = doc.processing_progress || 0;
+        badge = '<span class="doc-badge processing">processing</span><div class="doc-progress-bar"><div class="doc-progress-fill" style="width:'+pct+'%"></div></div>';
+      } else if (doc.status === 'error') { badge = '<span class="doc-badge error">error</span>'; }
+      else { badge = '<span class="doc-badge ready">ready</span>'; }
       const err = doc.status==='error'&&doc.error_message?'<div class="doc-error">'+esc(doc.error_message)+'</div>':'';
       const retryBtn = doc.status==='error'?'<button class="doc-delete-btn" data-action="retry" data-did="'+doc.id+'" style="color:var(--primary);border-color:var(--primary)">Retry</button>':'';
       const enabled = doc.enabled !== 0;
@@ -375,10 +386,33 @@
       $('sitemap-results').classList.add('hidden');
       $('sitemap-url-input').value = '';
       sitemapDiscoveredUrl = null;
-      // Refresh documents list after a delay to show incoming docs
-      setTimeout(() => loadDocuments(), 3000);
-    } catch(err) { toast(err.message, 'error'); }
-    finally { btn.disabled = false; btn.textContent = 'Start Import'; }
+      startImportProgressPoll();
+    } catch(err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Start Import'; }
+  }
+
+  let importPollTimer = null;
+  function startImportProgressPoll() {
+    const summary = $('sitemap-summary');
+    const resultsEl = $('sitemap-results');
+    if (resultsEl) resultsEl.classList.remove('hidden');
+    if (importPollTimer) clearInterval(importPollTimer);
+    importPollTimer = setInterval(async () => {
+      try {
+        const p = await api.get('/documents/sitemap/progress');
+        if (p.running) {
+          const phaseLabel = p.phase === 'scraping' ? 'Scraping pages' : 'Processing & embedding';
+          summary.innerHTML = '<strong>' + phaseLabel + ':</strong> ' + p.completed + ' / ' + p.total + (p.failed ? ' (' + p.failed + ' failed)' : '');
+        } else {
+          const doneLabel = p.phase === 'error' ? 'Import stopped due to error' : 'Import complete';
+          summary.innerHTML = '<strong>' + doneLabel + ':</strong> ' + p.completed + ' / ' + p.total + (p.failed ? ' (' + p.failed + ' failed)' : '');
+          clearInterval(importPollTimer);
+          importPollTimer = null;
+          $('sitemap-import-btn').disabled = false;
+          $('sitemap-import-btn').textContent = 'Start Import';
+          loadDocuments();
+        }
+      } catch { clearInterval(importPollTimer); importPollTimer = null; }
+    }, 3000);
   }
 
   async function syncGroup(groupId, btnEl) {
@@ -387,12 +421,16 @@
       const result = await api.post('/documents/groups/'+groupId+'/sync');
       if (result.newUrls === 0) {
         toast('Already up to date — no new pages found', 'info');
+        btnEl.disabled = false; btnEl.textContent = 'Sync';
       } else {
         toast('Found ' + result.newUrls + ' new page' + (result.newUrls > 1 ? 's' : '') + '. Importing...', 'success');
-        setTimeout(() => loadDocuments(), 3000);
+        startImportProgressPoll();
+        // Re-enable button when progress finishes (handled by poll)
+        const checkDone = setInterval(() => {
+          if (!importPollTimer) { btnEl.disabled = false; btnEl.textContent = 'Sync'; clearInterval(checkDone); }
+        }, 3000);
       }
-    } catch(err) { toast(err.message, 'error'); }
-    finally { btnEl.disabled = false; btnEl.textContent = 'Sync'; }
+    } catch(err) { toast(err.message, 'error'); btnEl.disabled = false; btnEl.textContent = 'Sync'; }
   }
 
   async function uploadDoc(e) {

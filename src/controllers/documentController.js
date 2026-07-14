@@ -288,10 +288,22 @@ class DocumentController {
     } catch (err) { next(err); }
   }
 
+  // Global import state — prevents duplicate concurrent imports
+  static _importRunning = false;
+  static _importProgress = { running: false, phase: '', total: 0, completed: 0, failed: 0, groupId: null };
+
+  static getImportProgress(req, res, next) {
+    res.json(DocumentController._importProgress);
+  }
+
   static async sitemapImport(req, res, next) {
     try {
       if (req.session.role !== 'techadmin') {
         throw new AuthorizationError('Only tech admins can import sitemaps');
+      }
+
+      if (DocumentController._importRunning) {
+        throw new ValidationError('A sitemap import is already running. Please wait for it to finish.');
       }
 
       const { sitemapUrl, limit, pathFilter } = req.body;
@@ -335,63 +347,107 @@ class DocumentController {
         url: sitemapUrl
       });
 
-      // Import in background batches
       const kb = KnowledgeBase.getDefaultForUser(req.session.userId);
       if (!kb) throw new Error('No knowledge base found');
 
       const { scrapeUrl } = require('../services/webScraper');
       const { v4: uuidv4 } = require('uuid');
+      const { saveDatabase } = require('../database/connection');
+      const { processDocument } = require('../services/documentProcessor');
 
-      // Process async — don't block the response
+      // Set lock and progress
+      DocumentController._importRunning = true;
+      DocumentController._importProgress = { running: true, phase: 'scraping', total: toImport.length, completed: 0, failed: 0, groupId: group.id };
+
+      // Process async — two phases
       (async () => {
-        let imported = 0;
-        const batchSize = 3;
-        for (let i = 0; i < toImport.length; i += batchSize) {
-          const batch = toImport.slice(i, i + batchSize);
-          await Promise.allSettled(batch.map(async (entry) => {
-            try {
-              const fullUrl = entry.loc;
+        const savedDocIds = [];
+        let scraped = 0;
+        let failed = 0;
 
-              // Skip if already imported
-              const existing = Document.findByOriginalName(fullUrl);
-              if (existing) return;
+        // ═══ PHASE 1: Scrape all URLs (no embedding) ═══
+        for (let i = 0; i < toImport.length; i++) {
+          const entry = toImport[i];
+          try {
+            const fullUrl = entry.loc;
 
-              // Scrape
-              const { title, text } = await scrapeUrl(fullUrl);
+            // Skip if already imported
+            const existing = Document.findByOriginalName(fullUrl);
+            if (existing) { scraped++; continue; }
 
-              // Save
-              const filename = uuidv4() + '.txt';
-              const userDir = path.resolve('uploads', req.session.userId);
-              if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
-              fs.writeFileSync(path.join(userDir, filename), text, 'utf-8');
+            // Scrape
+            const { title, text } = await scrapeUrl(fullUrl);
 
-              const doc = Document.create({
-                userId: req.session.userId,
-                knowledgeBaseId: kb.id,
-                filename,
-                originalName: fullUrl,
-                fileType: 'url',
-                fileSize: Buffer.byteLength(text, 'utf-8')
-              });
+            // Save file
+            const filename = uuidv4() + '.txt';
+            const userDir = path.resolve('uploads', req.session.userId);
+            if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+            fs.writeFileSync(path.join(userDir, filename), text, 'utf-8');
 
-              // Assign to group
-              Document.setGroupId(doc.id, group.id);
+            // Create document record (status stays 'processing')
+            const doc = Document.create({
+              userId: req.session.userId,
+              knowledgeBaseId: kb.id,
+              filename,
+              originalName: fullUrl,
+              fileType: 'url',
+              fileSize: Buffer.byteLength(text, 'utf-8')
+            });
 
-              KnowledgeBase.incrementDocCount(kb.id);
-              imported++;
+            Document.setGroupId(doc.id, group.id);
+            KnowledgeBase.incrementDocCount(kb.id);
+            savedDocIds.push(doc.id);
+            scraped++;
+          } catch (err) {
+            failed++;
+            logger.error('Sitemap scrape failed', { url: entry.loc, error: err.message });
+          }
 
-              // Process
-              const { processDocument } = require('../services/documentProcessor');
-              await processDocument(doc.id);
-            } catch (err) {
-              logger.error('Sitemap URL import failed', { url: entry.loc, error: err.message });
-            }
-          }));
+          DocumentController._importProgress.completed = scraped + failed;
+          DocumentController._importProgress.failed = failed;
+
+          // Save DB periodically
+          if (i % 20 === 0) saveDatabase();
         }
-        // Update group doc count
-        SourceGroup.incrementDocCount(group.id, imported);
-        logger.info('Sitemap import complete', { sitemapUrl, imported, groupId: group.id });
-      })();
+
+        saveDatabase();
+        logger.info('Sitemap scrape phase complete', { scraped, failed, docsToProcess: savedDocIds.length });
+
+        // ═══ PHASE 2: Process documents one by one (chunk + embed) ═══
+        DocumentController._importProgress.phase = 'processing';
+        DocumentController._importProgress.total = savedDocIds.length;
+        DocumentController._importProgress.completed = 0;
+        DocumentController._importProgress.failed = 0;
+
+        let processed = 0;
+        let processFailed = 0;
+        for (const docId of savedDocIds) {
+          try {
+            await processDocument(docId);
+            processed++;
+          } catch (err) {
+            processFailed++;
+            // processDocument already sets error status
+          }
+          DocumentController._importProgress.completed = processed + processFailed;
+          DocumentController._importProgress.failed = processFailed;
+
+          // Save DB every 5 docs
+          if (processed % 5 === 0) saveDatabase();
+        }
+
+        // Final cleanup
+        SourceGroup.incrementDocCount(group.id, savedDocIds.length);
+        saveDatabase();
+        DocumentController._importRunning = false;
+        DocumentController._importProgress = { running: false, phase: 'done', total: savedDocIds.length, completed: processed + processFailed, failed: processFailed, groupId: group.id };
+        logger.info('Sitemap import complete', { sitemapUrl, scraped, processed, processFailed, groupId: group.id });
+      })().catch(err => {
+        logger.error('Sitemap import crashed', { error: err.message, stack: err.stack });
+        DocumentController._importRunning = false;
+        DocumentController._importProgress.running = false;
+        DocumentController._importProgress.phase = 'error';
+      });
 
       res.json({ success: true, message: `Importing ${toImport.length} URLs from sitemap. This will run in the background.`, queued: toImport.length, groupId: group.id });
     } catch (err) { next(err); }
@@ -426,6 +482,10 @@ class DocumentController {
         throw new AuthorizationError('Only tech admins can sync sitemaps');
       }
 
+      if (DocumentController._importRunning) {
+        throw new ValidationError('An import is already running. Please wait for it to finish.');
+      }
+
       const SourceGroup = require('../models/SourceGroup');
       const group = SourceGroup.findById(req.params.id);
       if (!group) throw new NotFoundError('Source group');
@@ -446,49 +506,84 @@ class DocumentController {
         return res.json({ success: true, newUrls: 0, message: 'No new URLs found' });
       }
 
-      // Import new URLs in background
       const kb = KnowledgeBase.getDefaultForUser(req.session.userId);
       if (!kb) throw new Error('No knowledge base found');
 
       const { scrapeUrl } = require('../services/webScraper');
       const { v4: uuidv4 } = require('uuid');
+      const { saveDatabase } = require('../database/connection');
+      const { processDocument } = require('../services/documentProcessor');
+
+      DocumentController._importRunning = true;
+      DocumentController._importProgress = { running: true, phase: 'scraping', total: newUrls.length, completed: 0, failed: 0, groupId: group.id };
 
       (async () => {
-        let imported = 0;
-        const batchSize = 3;
-        for (let i = 0; i < newUrls.length; i += batchSize) {
-          const batch = newUrls.slice(i, i + batchSize);
-          await Promise.allSettled(batch.map(async (entry) => {
-            try {
-              const { title, text } = await scrapeUrl(entry.loc);
-              const filename = uuidv4() + '.txt';
-              const userDir = path.resolve('uploads', req.session.userId);
-              if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
-              fs.writeFileSync(path.join(userDir, filename), text, 'utf-8');
+        const savedDocIds = [];
+        let scraped = 0;
+        let failed = 0;
 
-              const doc = Document.create({
-                userId: req.session.userId,
-                knowledgeBaseId: kb.id,
-                filename,
-                originalName: entry.loc,
-                fileType: 'url',
-                fileSize: Buffer.byteLength(text, 'utf-8')
-              });
+        // Phase 1: Scrape only
+        for (let i = 0; i < newUrls.length; i++) {
+          try {
+            const { title, text } = await scrapeUrl(newUrls[i].loc);
+            const filename = uuidv4() + '.txt';
+            const userDir = path.resolve('uploads', req.session.userId);
+            if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+            fs.writeFileSync(path.join(userDir, filename), text, 'utf-8');
 
-              Document.setGroupId(doc.id, group.id);
-              KnowledgeBase.incrementDocCount(kb.id);
-              imported++;
+            const doc = Document.create({
+              userId: req.session.userId,
+              knowledgeBaseId: kb.id,
+              filename,
+              originalName: newUrls[i].loc,
+              fileType: 'url',
+              fileSize: Buffer.byteLength(text, 'utf-8')
+            });
 
-              const { processDocument } = require('../services/documentProcessor');
-              await processDocument(doc.id);
-            } catch (err) {
-              logger.error('Sync URL import failed', { url: entry.loc, error: err.message });
-            }
-          }));
+            Document.setGroupId(doc.id, group.id);
+            KnowledgeBase.incrementDocCount(kb.id);
+            savedDocIds.push(doc.id);
+            scraped++;
+          } catch (err) {
+            failed++;
+            logger.error('Sync scrape failed', { url: newUrls[i].loc, error: err.message });
+          }
+          DocumentController._importProgress.completed = scraped + failed;
+          DocumentController._importProgress.failed = failed;
+          if (i % 20 === 0) saveDatabase();
         }
-        SourceGroup.incrementDocCount(group.id, imported);
-        logger.info('Sitemap sync complete', { groupId: group.id, newImported: imported });
-      })();
+
+        saveDatabase();
+
+        // Phase 2: Process one by one
+        DocumentController._importProgress.phase = 'processing';
+        DocumentController._importProgress.total = savedDocIds.length;
+        DocumentController._importProgress.completed = 0;
+        DocumentController._importProgress.failed = 0;
+
+        let processed = 0;
+        let processFailed = 0;
+        for (const docId of savedDocIds) {
+          try {
+            await processDocument(docId);
+            processed++;
+          } catch { processFailed++; }
+          DocumentController._importProgress.completed = processed + processFailed;
+          DocumentController._importProgress.failed = processFailed;
+          if (processed % 5 === 0) saveDatabase();
+        }
+
+        SourceGroup.incrementDocCount(group.id, savedDocIds.length);
+        saveDatabase();
+        DocumentController._importRunning = false;
+        DocumentController._importProgress = { running: false, phase: 'done', total: savedDocIds.length, completed: processed + processFailed, failed: processFailed, groupId: group.id };
+        logger.info('Sitemap sync complete', { groupId: group.id, scraped, processed, processFailed });
+      })().catch(err => {
+        logger.error('Sitemap sync crashed', { error: err.message });
+        DocumentController._importRunning = false;
+        DocumentController._importProgress.running = false;
+        DocumentController._importProgress.phase = 'error';
+      });
 
       res.json({ success: true, newUrls: newUrls.length, message: `Importing ${newUrls.length} new URLs` });
     } catch (err) { next(err); }

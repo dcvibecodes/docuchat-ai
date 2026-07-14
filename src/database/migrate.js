@@ -170,6 +170,7 @@ async function migrate() {
   // Add columns to documents table (safe to re-run — ignores if exists)
   try { conn.exec('ALTER TABLE documents ADD COLUMN group_id TEXT'); } catch (e) { /* already exists */ }
   try { conn.exec('ALTER TABLE documents ADD COLUMN enabled INTEGER DEFAULT 1'); } catch (e) { /* already exists */ }
+  try { conn.exec('ALTER TABLE documents ADD COLUMN processing_progress INTEGER DEFAULT 0'); } catch (e) { /* already exists */ }
 
   // Index on new column (must be after ALTER TABLE)
   try { conn.exec('CREATE INDEX IF NOT EXISTS idx_documents_group ON documents(group_id)'); } catch (e) { /* ignore */ }

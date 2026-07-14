@@ -8,14 +8,25 @@ const logger = require('../utils/logger');
 async function fetchSitemap(sitemapUrl) {
   logger.info('Fetching sitemap', { url: sitemapUrl });
 
-  const response = await fetch(sitemapUrl, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; DocuChatBot/2.0)',
-      'Accept': 'application/xml,text/xml,text/plain'
-    },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(30000)
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  let response;
+  try {
+    response = await fetch(sitemapUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; DocuChatBot/2.0)',
+        'Accept': 'application/xml,text/xml,text/plain'
+      },
+      redirect: 'follow',
+      signal: controller.signal
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err.name === 'AbortError') throw new Error(`Sitemap fetch timeout: ${sitemapUrl}`);
+    throw err;
+  }
+  clearTimeout(timeout);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch sitemap: ${response.status} ${response.statusText}`);
@@ -101,12 +112,15 @@ async function detectSitemap(domain) {
 
   for (const url of candidates) {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
       const res = await fetch(url, {
         method: 'HEAD',
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; DocuChatBot/2.0)' },
         redirect: 'follow',
-        signal: AbortSignal.timeout(10000)
+        signal: controller.signal
       });
+      clearTimeout(timeout);
       if (res.ok) {
         return url;
       }

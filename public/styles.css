@@ -51,7 +51,8 @@ body {
 .setup-note { font-size: 0.7rem; color: var(--text-faint); margin-bottom: 12px; }
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; font-size: 0.68rem; font-weight: 500; color: var(--text-faint); margin-bottom: 4px; }
-.form-group input, .form-group textarea, .form-group select { width: 100%; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 0.8rem; font-family: inherit; transition: border-color 0.15s; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 0.8rem; font-family: inherit; transition: border-color 0.15s; -webkit-appearance: none; appearance: none; }
+.form-group select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
 .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
 .form-group input::placeholder, .form-group textarea::placeholder { color: var(--text-faint); }
 .error-message { color: var(--danger); font-size: 0.7rem; text-align: center; margin-top: 10px; min-height: 16px; }
@@ -196,6 +197,8 @@ body {
 .doc-badge.processing { background: rgba(202,138,4,0.08); color: var(--warning); }
 .doc-badge.ready { background: rgba(22,163,74,0.08); color: var(--success); }
 .doc-badge.error { background: var(--danger-dim); color: var(--danger); }
+.doc-progress-bar { width: 48px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+.doc-progress-fill { height: 100%; background: var(--warning); border-radius: 2px; transition: width 0.3s; }
 .doc-row-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
 .doc-delete-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: transparent; color: var(--text-faint); font-size: 0.64rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .doc-delete-btn:hover { background: var(--danger-dim); color: var(--danger); border-color: var(--danger); }
@@ -256,7 +259,7 @@ body.is-admin:not(.is-techadmin) .admin-only-not-tech { display: block; }
 .stat-card .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
 .stat-card .stat-label { font-size: 0.56rem; color: var(--text-faint); text-transform: uppercase; margin-top: 2px; }
 .config-grid { display: flex; flex-direction: column; gap: 10px; }
-.chart-range-select { padding: 4px 10px; border: 1px solid var(--border); border-radius: 5px; font-size: 0.7rem; font-family: inherit; background: var(--bg); color: var(--text); }
+.chart-range-select { padding: 4px 10px; border: 1px solid var(--border); border-radius: 5px; font-size: 0.7rem; font-family: inherit; background: var(--bg); color: var(--text); -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; }
 
 /* Suggested Prompts Admin */
 .suggested-prompts-admin { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }

@@ -31,32 +31,45 @@ async function generateOpenAIEmbeddings(texts) {
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
 
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ model, input: batch })
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000); // 60s per batch
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`OpenAI Embedding API error: ${response.status} - ${errorBody}`);
-    }
-
-    const data = await response.json();
-    const dimensions = data.data[0].embedding.length;
-
-    for (const item of data.data) {
-      results.push({
-        vector: item.embedding,
-        model,
-        dimensions
+    try {
+      const response = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ model, input: batch }),
+        signal: controller.signal
       });
-    }
 
-    logger.debug('Embedding batch processed', { batch: i / batchSize + 1, count: batch.length });
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`OpenAI Embedding API error: ${response.status} - ${errorBody}`);
+      }
+
+      const data = await response.json();
+      const dimensions = data.data[0].embedding.length;
+
+      for (const item of data.data) {
+        results.push({
+          vector: item.embedding,
+          model,
+          dimensions
+        });
+      }
+
+      logger.debug('Embedding batch processed', { batch: i / batchSize + 1, count: batch.length });
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('OpenAI Embedding API timeout (60s)');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   return results;
@@ -68,22 +81,35 @@ async function generateLocalEmbeddings(texts) {
   const results = [];
 
   for (const text of texts) {
-    const response = await fetch(`${url}/api/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt: text })
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
-    if (!response.ok) {
-      throw new Error(`Local embedding error: ${response.status}`);
+    try {
+      const response = await fetch(`${url}/api/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, prompt: text }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`Local embedding error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      results.push({
+        vector: data.embedding,
+        model,
+        dimensions: data.embedding.length
+      });
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('Local embedding timeout (30s)');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data = await response.json();
-    results.push({
-      vector: data.embedding,
-      model,
-      dimensions: data.embedding.length
-    });
   }
 
   return results;

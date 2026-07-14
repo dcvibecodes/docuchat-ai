@@ -1,4 +1,4 @@
-# DocuChat AI v2.3.0
+# DocuChat AI v2.4.0
 
 Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, import entire sites via sitemap, ask questions, get answers grounded only in your sources with citations.
 
@@ -15,15 +15,17 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Dark theme** — 3-way toggle (Auto/Light/Dark) with system preference detection and localStorage persistence
 - **Keyboard shortcuts** — Ctrl+Shift+O / ⌘⇧O (new chat), Ctrl+Shift+Backspace / ⌘⇧⌫ (clear all), Escape (close dialogs)
 - **Help tab visible to all users** — user-friendly content for regular users, admin-specific sections for admins
-- **Mobile hamburger drawer** — full responsive design, all features accessible on mobile
+- **Mobile responsive** — hamburger menu with theme toggle, all features accessible on mobile
 - **Password change** — available to all users from header or mobile menu
 
 ### Knowledge Base
 - **Multi-file drag-and-drop upload** with progress indicator
 - **Web URL scraping** — paste a URL to scrape and index content as a document source
-- **Sitemap import (Tech Admin)** — discover URLs from a sitemap, preview count, filter by path, choose how many to import, background processing
-- **Source groups** — sitemap imports appear as one collapsible group, not hundreds of individual entries
-- **Sync** — re-scan a sitemap to find and import only new pages since the last import
+- **Sitemap import (Tech Admin)** — two-phase architecture: scrape first, then embed one-by-one to prevent server overload
+- **Source groups** — sitemap imports appear as a single group block, not individual entries
+- **Sync** — re-scan a sitemap to find and import only new pages since last import
+- **Live progress** — real-time progress indicator for sitemap import (scraping phase → processing phase) with count
+- **Per-document progress bar** — visual indicator on each "processing" document showing extraction → chunking → embedding stages
 - **Enable/disable toggle** — turn any document or source group on/off instantly without re-processing; disabled sources are excluded from chat
 - **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV, Web URLs
 - **Format guidance** — hints in UI: PDF/Word/Markdown best for SOPs; Excel/CSV best for reference data
@@ -47,12 +49,13 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **API keys configured in UI** — not in environment variables
 
 ### Infrastructure
-- **Username/password auth** — no email required, first user auto-becomes admin, no self-registration
+- **Username/password auth** — no email required, first user auto-becomes tech admin, no self-registration
 - **Reverse proxy ready** — `trust proxy` support for HTTPS/Nginx deployments
 - **Sessions** — in-memory with memorystore
 - **Conflict resolution** — latest document/update wins, conflicts reported in responses
 - **No build step** — vanilla JS single-page app frontend
 - **Safe migrations** — new schema changes applied non-destructively on startup; existing data preserved
+- **Server stability** — all network calls have hard timeouts, import lock prevents concurrent overload, periodic DB saves during long operations
 
 ## Tech Stack
 
@@ -71,20 +74,22 @@ npm install
 npm start
 ```
 
-Open `http://localhost:3000`. First visit shows a one-time setup screen to create the admin account.
+Open `http://localhost:3000`. First visit shows a one-time setup screen to create the tech admin account.
 
 1. Log in → **Admin** tab → set LLM provider and API key
 2. **Knowledge** tab → upload knowledge documents or add URLs
 3. Wait for "ready" status
 4. **Chat** tab → ask questions
 
-## Upgrading from v2.2.0
+## Upgrading from v2.2.0 / v2.3.0
 
 No manual steps required. The migration runs automatically on startup and:
 - Creates the `source_groups` table
-- Adds `group_id` and `enabled` columns to existing documents (defaults to enabled)
+- Adds `group_id`, `enabled`, and `processing_progress` columns to existing documents (defaults to enabled, 0% progress)
+- Removes dependency on the `email` column in user creation (fixes first-login error on fresh databases)
 - All existing data, documents, embeddings, and conversations are preserved
 - No re-indexing or re-embedding needed
+- Previously imported sitemap URLs (e.g., 671 already imported) remain as-is and continue to work; they won't have a source group assigned but will function normally as individual URL documents
 
 ## Environment Variables
 
@@ -124,10 +129,11 @@ document-chatbot/
 │   ├── routes/              # Express route definitions
 │   ├── services/            # Business logic
 │   │   ├── extractors/      # PDF, DOCX, TXT, MD, Excel, CSV extractors
-│   │   ├── webScraper.js    # URL content extraction
+│   │   ├── webScraper.js    # URL content extraction (45s timeout)
 │   │   ├── sitemapService.js # Sitemap discovery, parsing, and auto-detection
 │   │   ├── chunker.js       # Semantic text chunking with page tracking
-│   │   ├── embeddingService.js
+│   │   ├── embeddingService.js  # OpenAI/local embeddings (60s timeout per batch)
+│   │   ├── documentProcessor.js # Two-phase: extract+chunk+embed with progress reporting
 │   │   ├── vectorSearch.js  # Cosine similarity search (filters disabled sources)
 │   │   ├── llmService.js    # Multi-provider LLM client
 │   │   └── ragService.js    # RAG pipeline orchestration
@@ -141,7 +147,7 @@ document-chatbot/
 
 ### Auth
 - `GET /api/auth/needs-setup` — Check if first-time setup needed
-- `POST /api/auth/setup` — Create initial admin
+- `POST /api/auth/setup` — Create initial tech admin
 - `POST /api/auth/login` — Log in (username + password)
 - `POST /api/auth/logout` — Log out
 - `GET /api/auth/profile` — Current user
@@ -164,7 +170,8 @@ document-chatbot/
 
 ### Sitemap Import (Tech Admin)
 - `POST /api/documents/sitemap/discover` — Discover URLs from sitemap or domain
-- `POST /api/documents/sitemap/import` — Start background import of discovered URLs
+- `POST /api/documents/sitemap/import` — Start two-phase background import
+- `GET /api/documents/sitemap/progress` — Poll import progress (phase, completed, total, failed)
 
 ### Chat
 - `GET /api/chat/conversations` — List conversations
@@ -200,10 +207,20 @@ document-chatbot/
 
 1. **Upload** — Text extracted from files (page-by-page for PDFs) or scraped from URLs
 2. **Chunk** — Split into overlapping semantic chunks (~800 tokens) with page/section tracking
-3. **Embed** — Each chunk converted to a vector (1536 or 3072 dimensions)
+3. **Embed** — Each chunk converted to a vector (1536 or 3072 dimensions) — done serially, one document at a time
 4. **Store** — Vectors saved with metadata (document, page, heading)
 5. **Query** — User question converted to vector → cosine similarity search (only enabled sources)
 6. **Generate** — Top matching chunks sent to LLM with system prompt → grounded answer with citations
+
+## Sitemap Import Architecture
+
+The sitemap import uses a two-phase approach designed for low-memory servers:
+
+**Phase 1 (Scraping):** Each URL is fetched and saved as a text file. Documents are created with `status: 'processing'`. No AI API calls. One URL at a time, sequentially.
+
+**Phase 2 (Processing):** Each saved document is processed one at a time — extract text, chunk, call embedding API, store vectors. Only one document's embeddings are in memory at any point.
+
+This prevents the memory spikes and hanging promises that occur when scraping + embedding happen concurrently.
 
 ## Deployment
 
@@ -220,6 +237,8 @@ pm2 save && pm2 startup
 ```
 
 For HTTPS, put Nginx in front with SSL termination. The app includes `trust proxy` support for reverse proxy deployments.
+
+**Minimum server requirements:** 512MB RAM (1GB recommended for sitemap imports of 1000+ URLs).
 
 ## Backup
 

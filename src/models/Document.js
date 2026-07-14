@@ -63,10 +63,14 @@ class Document {
 
   static updateStatus(id, status, errorMessage = null) {
     if (status === 'ready') {
-      db.run("UPDATE documents SET status = ?, error_message = NULL, indexed_at = datetime('now') WHERE id = ?", [status, id]);
+      db.run("UPDATE documents SET status = ?, error_message = NULL, processing_progress = 100, indexed_at = datetime('now') WHERE id = ?", [status, id]);
     } else {
       db.run('UPDATE documents SET status = ?, error_message = ? WHERE id = ?', [status, errorMessage, id]);
     }
+  }
+
+  static updateProgress(id, progress) {
+    db.run('UPDATE documents SET processing_progress = ? WHERE id = ?', [progress, id]);
   }
 
   static updateChunkCount(id, count) {

@@ -18,7 +18,8 @@ async function processDocument(documentId) {
   logger.info('Processing document', { docId: doc.id, name: doc.original_name });
 
   try {
-    // Step 1: Extract text from file
+    // Step 1: Extract text from file (10%)
+    Document.updateProgress(doc.id, 10);
     const filePath = path.resolve(config.paths.uploads, doc.user_id, doc.filename);
     if (!fs.existsSync(filePath)) {
       throw new Error('File not found on disk');
@@ -36,7 +37,8 @@ async function processDocument(documentId) {
       db.run('UPDATE documents SET page_count = ? WHERE id = ?', [pageCount, doc.id]);
     }
 
-    // Step 2: Chunk the text
+    // Step 2: Chunk the text (30%)
+    Document.updateProgress(doc.id, 30);
     const chunks = chunkText(text, {
       chunkSize: config.rag.chunkSize,
       chunkOverlap: config.rag.chunkOverlap,
@@ -45,7 +47,8 @@ async function processDocument(documentId) {
 
     logger.info('Text chunked', { docId: doc.id, chunkCount: chunks.length });
 
-    // Step 3: Store chunks
+    // Step 3: Store chunks (40%)
+    Document.updateProgress(doc.id, 40);
     const chunkRecords = chunks.map((chunk, index) => ({
       documentId: doc.id,
       userId: doc.user_id,
@@ -60,10 +63,12 @@ async function processDocument(documentId) {
     const chunkIds = Chunk.createMany(chunkRecords);
     Document.updateChunkCount(doc.id, chunkIds.length);
 
-    // Step 4: Generate embeddings
+    // Step 4: Generate embeddings (50% → 90%)
+    Document.updateProgress(doc.id, 50);
     const embeddingResults = await generateEmbeddings(chunks.map(c => c.content));
+    Document.updateProgress(doc.id, 90);
 
-    // Step 5: Store embeddings
+    // Step 5: Store embeddings (90% → 100%)
     const embeddingRecords = embeddingResults.map((emb, index) => ({
       chunkId: chunkIds[index],
       documentId: doc.id,
@@ -76,7 +81,7 @@ async function processDocument(documentId) {
 
     Embedding.createMany(embeddingRecords);
 
-    // Mark as ready
+    // Mark as ready (100%)
     Document.updateStatus(doc.id, 'ready');
     logger.info('Document processing complete', { docId: doc.id, chunks: chunkIds.length });
   } catch (err) {
