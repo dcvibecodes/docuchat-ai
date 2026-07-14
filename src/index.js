@@ -77,18 +77,18 @@ async function startServer() {
     credentials: true
   }));
 
-  // Rate limiting
+  // Rate limiting — general API (generous for logged-in usage)
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 200,
+    max: 1000,
     message: { error: { message: 'Too many requests, please try again later', code: 'RATE_LIMITED' } }
   });
   app.use('/api/', limiter);
 
-  // Stricter rate limit for auth
+  // Stricter rate limit for auth (prevents brute force)
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 30,
     message: { error: { message: 'Too many authentication attempts', code: 'RATE_LIMITED' } }
   });
   app.use('/api/auth/login', authLimiter);

@@ -10,6 +10,7 @@ router.get('/', DocumentController.list);
 router.post('/upload', upload.single('file'), DocumentController.upload);
 router.post('/import-url', DocumentController.importUrl);
 router.post('/reprocess-all', DocumentController.reprocessAll);
+router.post('/batch-delete', DocumentController.batchDelete);
 
 router.patch('/:id/toggle', DocumentController.toggleDocument);
 router.get('/:id', DocumentController.get);

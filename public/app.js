@@ -316,23 +316,18 @@
     const btn = $('batch-delete-btn');
     btn.disabled = true; btn.textContent = 'Deleting ' + count + '...';
     const ids = Array.from(selectedDocs);
-    let deleted = 0;
-    let failed = 0;
-    for (const id of ids) {
-      try {
-        await api.del('/documents/' + id);
-        state.documents = state.documents.filter(d => d.id !== id);
-        selectedDocs.delete(id);
-        deleted++;
-        btn.textContent = 'Deleting ' + (deleted + failed) + '/' + count + '...';
-      } catch (err) {
-        failed++;
-      }
+    try {
+      const result = await api.post('/documents/batch-delete', { ids });
+      state.documents = state.documents.filter(d => !selectedDocs.has(d.id));
+      selectedDocs.clear();
+      renderDocs();
+      let msg = result.deleted + ' document' + (result.deleted > 1 ? 's' : '') + ' deleted';
+      if (result.failed > 0) msg += ' (' + result.failed + ' failed)';
+      toast(msg, result.failed > 0 ? 'warning' : 'success');
+    } catch (err) {
+      toast(err.message, 'error');
     }
     btn.disabled = false; btn.textContent = 'Delete Selected';
-    if (deleted > 0) toast(deleted + ' document' + (deleted > 1 ? 's' : '') + ' deleted', 'success');
-    if (failed > 0) toast(failed + ' failed to delete', 'error');
-    renderDocs();
   }
   async function retryDoc(id) { try { await api.post('/documents/'+id+'/reindex'); toast('Retrying...','info'); await loadDocuments(); } catch(err){toast(err.message,'error');} }
 

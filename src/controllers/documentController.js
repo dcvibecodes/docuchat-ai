@@ -128,6 +128,42 @@ class DocumentController {
     } catch (err) { next(err); }
   }
 
+  static batchDelete(req, res, next) {
+    try {
+      const { ids } = req.body;
+      if (!ids || !Array.isArray(ids) || !ids.length) throw new ValidationError('ids array is required');
+
+      let deleted = 0;
+      let failed = 0;
+      const errors = [];
+
+      for (const id of ids) {
+        try {
+          const doc = Document.findById(id);
+          if (!doc) { failed++; continue; }
+          if (req.session.role !== 'admin' && req.session.role !== 'techadmin' && doc.user_id !== req.session.userId) { failed++; continue; }
+
+          const filePath = path.resolve('uploads', doc.user_id, doc.filename);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+          User.updateStorageUsed(doc.user_id, -doc.file_size);
+          KnowledgeBase.decrementDocCount(doc.knowledge_base_id);
+          Document.delete(doc.id);
+          deleted++;
+        } catch (err) {
+          failed++;
+          errors.push({ id, error: err.message });
+        }
+      }
+
+      // Save DB once after all deletes
+      const { saveDatabase } = require('../database/connection');
+      saveDatabase();
+
+      res.json({ success: true, deleted, failed, total: ids.length });
+    } catch (err) { next(err); }
+  }
+
   static async importUrl(req, res, next) {
     try {
       const { url } = req.body;
