@@ -458,14 +458,16 @@
           <div class="help-section admin-only" style="display:none;">
             <h3>Admin — Knowledge Base</h3>
             <ul>
-              <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select multiple files. Supports PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV.</li>
+              <li><strong>Upload:</strong> Click "Upload" → drag-and-drop or select files. You can drop multiple files at once, or drop additional files to add to the selection. Supports PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV, SQLite (.sqlite/.db/.sqlite3), and SQL dumps (.sql).</li>
+              <li><strong>Database files:</strong> Upload your blog or CMS SQLite database directly — all tables are extracted and indexed as searchable text.</li>
               <li><strong>Add URL:</strong> Paste a public website URL to scrape and index its content.</li>
-              <li><strong>Enable/Disable Sources:</strong> Toggle any document on/off. Disabled sources are excluded from chat answers instantly — no re-processing needed. Re-enable anytime.</li>
+              <li><strong>Batch delete:</strong> Use the checkboxes to select multiple documents, then click "Delete Selected" to remove them all at once.</li>
+              <li><strong>Enable/Disable Sources:</strong> Toggle any document on/off. Disabled sources are excluded from chat answers instantly — no re-processing needed.</li>
               <li><strong>Re-embed All:</strong> After changing the embedding model, click to regenerate all embeddings without re-uploading.</li>
-              <li><strong>Retry:</strong> If processing failed (VPN/network issue), click Retry on the failed document.</li>
+              <li><strong>Retry:</strong> If processing failed (network issue), click Retry on the failed document.</li>
               <li><strong>Re-upload:</strong> Same filename replaces the old version automatically.</li>
-              <li><strong>Status:</strong> "processing" auto-refreshes every 3 seconds until "ready".</li>
-              <li><strong>Format guidance:</strong> PDF, Word, and Markdown work best for SOPs and narrative content. Excel/CSV are better for reference data and lookups.</li>
+              <li><strong>Status:</strong> Documents show "processing" with a progress bar that auto-refreshes until "ready". Do not ask questions until all documents show "ready".</li>
+              <li><strong>Format guidance:</strong> PDF, Word, and Markdown work best for SOPs and narrative content. Excel/CSV for reference data. SQLite/SQL for database exports (blogs, CMS content).</li>
             </ul>
           </div>
 

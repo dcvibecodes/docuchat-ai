@@ -1,4 +1,4 @@
-# DocuChat AI v2.6.0
+# DocuChat AI v2.7.0
 
 Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
 
@@ -23,8 +23,10 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Web URL scraping** — paste a URL to scrape and index content as a document source
 - **Per-document progress bar** — visual indicator on each "processing" document showing extraction → chunking → embedding stages
 - **Enable/disable toggle** — turn any document on/off instantly without re-processing; disabled sources are excluded from chat
-- **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV, Web URLs
-- **Format guidance** — hints in UI: PDF/Word/Markdown best for SOPs; Excel/CSV best for reference data
+- **Supported formats** — PDF, DOCX, TXT, Markdown, Excel (.xlsx/.xls), CSV, SQLite (.sqlite/.db/.sqlite3), SQL dumps (.sql), Web URLs
+- **Database file support** — upload SQLite databases (blog exports, CMS data) directly; all tables are extracted and indexed
+- **Format guidance** — hints in UI: PDF/Word/Markdown best for SOPs; Excel/CSV for reference data; SQLite/SQL for database exports
+- **Batch delete** — select multiple documents with checkboxes, delete all at once with a single server call
 - **Re-embed All** — regenerate embeddings without re-uploading after changing embedding model
 - **Re-upload same filename** replaces old version automatically
 - **Retry failed documents** without re-uploading
@@ -51,6 +53,9 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **No build step** — vanilla JS single-page app frontend
 - **Safe migrations** — new schema changes applied non-destructively on startup; existing data preserved
 - **Server stability** — unhandledRejection/uncaughtException handlers prevent crashes; all network calls have hard timeouts; periodic DB saves during long operations
+- **Live UI feedback** — all actions (delete, save, clear, toggle) show immediate visual feedback without requiring page refresh
+- **Double-send prevention** — send button locks immediately on mobile/desktop to prevent duplicate messages
+- **Multi-file upload** — accumulates files across multiple drag-and-drops; shows combined count before uploading
 
 ## Tech Stack
 

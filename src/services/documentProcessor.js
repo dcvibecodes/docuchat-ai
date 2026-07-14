@@ -71,10 +71,18 @@ async function processDocument(documentId) {
     // Breathe before heavy embedding phase
     await breathe(50);
 
-    // Step 4: Generate embeddings (50% → 90%)
+    // Step 4: Generate embeddings (50% → 90%) — update progress per batch
     Document.updateProgress(doc.id, 50);
-    const embeddingResults = await generateEmbeddings(chunks.map(c => c.content));
-    Document.updateProgress(doc.id, 90);
+    const batchSize = 100;
+    const embeddingResults = [];
+    for (let i = 0; i < chunks.length; i += batchSize) {
+      const batch = chunks.slice(i, i + batchSize).map(c => c.content);
+      const batchResults = await generateEmbeddings(batch);
+      embeddingResults.push(...batchResults);
+      // Granular progress: 50% → 90% proportional to chunks processed
+      const pct = 50 + Math.round((Math.min(i + batchSize, chunks.length) / chunks.length) * 40);
+      Document.updateProgress(doc.id, pct);
+    }
 
     // Step 5: Store embeddings (90% → 100%)
     const embeddingRecords = embeddingResults.map((emb, index) => ({
