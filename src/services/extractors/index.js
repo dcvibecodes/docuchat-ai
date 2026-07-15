@@ -18,7 +18,8 @@ async function extractText(filePath, fileType) {
     case 'csv':
       return extractCsv(filePath);
     case 'url':
-      return extractTxt(filePath); // URL content is saved as plain text
+    case 'note':
+      return extractTxt(filePath); // URL and note content is saved as plain text
     case 'sqlite':
     case 'db':
     case 'sqlite3':

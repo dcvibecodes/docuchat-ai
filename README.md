@@ -1,4 +1,4 @@
-# DocuChat AI v2.7.0
+# DocuChat AI v2.8.1
 
 Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
 
@@ -8,6 +8,8 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **RAG-powered chat** — answers only from uploaded document content, never from outside knowledge
 - **Streaming responses** — word-by-word display (toggleable)
 - **Inline citations** — document name, page number, and dates for chronological updates
+- **Clickable links** — URLs in bot responses are auto-linked (opens in new tab)
+- **Markdown tables** — bot can render tabular data with proper formatting
 - **Personalized greeting** — "Good morning/afternoon/evening, [Name]!" with "How can I help you today?"
 - **Suggested prompts** — up to 10 admin-configured prompts shown as cards on empty chat (drag-to-reorder, editable)
 - **Conversation management** — pin, delete, clear all, 20-chat auto-limit, no duplicate blank chats
@@ -27,6 +29,7 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Database file support** — upload SQLite databases (blog exports, CMS data) directly; all tables are extracted and indexed
 - **Format guidance** — hints in UI: PDF/Word/Markdown best for SOPs; Excel/CSV for reference data; SQLite/SQL for database exports
 - **Batch delete** — select multiple documents with checkboxes, delete all at once with a single server call
+- **Text notes** — quick-add plain text knowledge without uploading a file; editable inline with re-processing on save
 - **Re-embed All** — regenerate embeddings without re-uploading after changing embedding model
 - **Re-upload same filename** replaces old version automatically
 - **Retry failed documents** without re-uploading

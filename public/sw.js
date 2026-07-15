@@ -1,4 +1,4 @@
-const CACHE_NAME = 'docuchat-v2.10';
+const CACHE_NAME = 'docuchat-v2.81';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

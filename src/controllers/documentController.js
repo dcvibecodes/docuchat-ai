@@ -255,6 +255,98 @@ class DocumentController {
       res.json({ success: true, enabled: !!newEnabled });
     } catch (err) { next(err); }
   }
+
+  static createNote(req, res, next) {
+    try {
+      const { title, content } = req.body;
+      if (!content || !content.trim()) throw new ValidationError('Note content is required');
+
+      const kb = KnowledgeBase.getDefaultForUser(req.session.userId);
+      if (!kb) throw new Error('No knowledge base found');
+
+      const { v4: uuidv4 } = require('uuid');
+      const filename = uuidv4() + '.txt';
+      const userDir = path.resolve('uploads', req.session.userId);
+      if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+      fs.writeFileSync(path.join(userDir, filename), content.trim(), 'utf-8');
+
+      const noteName = (title && title.trim()) ? title.trim() : 'Note ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+      const doc = Document.create({
+        userId: req.session.userId,
+        knowledgeBaseId: kb.id,
+        filename,
+        originalName: noteName,
+        fileType: 'note',
+        fileSize: Buffer.byteLength(content.trim(), 'utf-8')
+      });
+
+      KnowledgeBase.incrementDocCount(kb.id);
+
+      const { processDocument } = require('../services/documentProcessor');
+      processDocument(doc.id).catch(err => {
+        Document.updateStatus(doc.id, 'error', err.message);
+      });
+
+      res.status(201).json(doc);
+    } catch (err) { next(err); }
+  }
+
+  static getNote(req, res, next) {
+    try {
+      const doc = Document.findById(req.params.id);
+      if (!doc) throw new NotFoundError('Document');
+      if (doc.file_type !== 'note') throw new ValidationError('This document is not a text note');
+      if (doc.user_id !== req.session.userId && req.session.role !== 'admin' && req.session.role !== 'techadmin') throw new AuthorizationError();
+
+      const filePath = path.resolve('uploads', doc.user_id, doc.filename);
+      if (!fs.existsSync(filePath)) throw new Error('Note file not found on disk');
+      const content = fs.readFileSync(filePath, 'utf-8');
+
+      res.json({ id: doc.id, title: doc.original_name, content });
+    } catch (err) { next(err); }
+  }
+
+  static async updateNote(req, res, next) {
+    try {
+      const { title, content } = req.body;
+      if (!content || !content.trim()) throw new ValidationError('Note content is required');
+
+      const doc = Document.findById(req.params.id);
+      if (!doc) throw new NotFoundError('Document');
+      if (doc.file_type !== 'note') throw new ValidationError('This document is not a text note');
+      if (doc.user_id !== req.session.userId && req.session.role !== 'admin' && req.session.role !== 'techadmin') throw new AuthorizationError();
+
+      // Update file on disk
+      const filePath = path.resolve('uploads', doc.user_id, doc.filename);
+      fs.writeFileSync(filePath, content.trim(), 'utf-8');
+
+      // Update document metadata
+      const newSize = Buffer.byteLength(content.trim(), 'utf-8');
+      const sizeDiff = newSize - doc.file_size;
+      User.updateStorageUsed(doc.user_id, sizeDiff);
+
+      const db = require('../database/db');
+      db.run('UPDATE documents SET file_size = ? WHERE id = ?', [newSize, doc.id]);
+
+      if (title && title.trim()) {
+        Document.rename(doc.id, title.trim());
+      }
+
+      // Re-process: clear old chunks/embeddings, re-index
+      Document.updateStatus(doc.id, 'processing');
+      Document.updateProgress(doc.id, 0);
+      Embedding.deleteByDocument(doc.id);
+      Chunk.deleteByDocument(doc.id);
+
+      const { processDocument } = require('../services/documentProcessor');
+      processDocument(doc.id).catch(err => {
+        Document.updateStatus(doc.id, 'error', err.message);
+      });
+
+      res.json({ success: true, message: 'Note updated, re-processing' });
+    } catch (err) { next(err); }
+  }
 }
 
 module.exports = DocumentController;

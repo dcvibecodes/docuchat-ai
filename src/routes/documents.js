@@ -11,6 +11,9 @@ router.post('/upload', upload.single('file'), DocumentController.upload);
 router.post('/import-url', DocumentController.importUrl);
 router.post('/reprocess-all', DocumentController.reprocessAll);
 router.post('/batch-delete', DocumentController.batchDelete);
+router.post('/notes', DocumentController.createNote);
+router.get('/notes/:id', DocumentController.getNote);
+router.put('/notes/:id', DocumentController.updateNote);
 
 router.patch('/:id/toggle', DocumentController.toggleDocument);
 router.get('/:id', DocumentController.get);

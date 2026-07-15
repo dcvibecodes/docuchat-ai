@@ -20,6 +20,16 @@
   }
   const currentTheme = initTheme();
 
+  // ── Text Size ──
+  const TEXT_SIZE_STEPS = [0, 1, 2, 3]; // 0=default, each step adds 1px to base
+  let textSizeLevel = parseInt(localStorage.getItem('docuchat-textsize') || '0', 10);
+  function applyTextSize(level) {
+    textSizeLevel = Math.max(0, Math.min(3, level));
+    document.documentElement.style.fontSize = (14 + textSizeLevel) + 'px';
+    localStorage.setItem('docuchat-textsize', textSizeLevel);
+  }
+  applyTextSize(textSizeLevel);
+
   // ── API ──
   const api = {
     async request(path, opts = {}) {
@@ -316,7 +326,10 @@
       const enabledClass = enabled ? '' : ' disabled';
       const toggleTitle = enabled ? 'Disable this source' : 'Enable this source';
       const checked = selectedDocs.has(doc.id) ? ' checked' : '';
-      return '<div class="doc-row'+enabledClass+'" data-docid="'+doc.id+'"><input type="checkbox" class="doc-checkbox" data-action="select-doc" data-did="'+doc.id+'"'+checked+'><div class="doc-icon '+doc.file_type+'">'+doc.file_type+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+'<label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(enabled?'checked':'')+' data-action="toggle-doc" data-did="'+doc.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
+      const editBtn = doc.file_type === 'note' ? '<button class="doc-delete-btn" data-action="edit-note" data-did="'+doc.id+'" style="color:var(--primary);border-color:var(--primary)">Edit</button>' : '';
+      const isEditing = editingNoteId === doc.id;
+      const editArea = isEditing ? '<div class="note-edit-area"><textarea data-did="'+doc.id+'" rows="6" placeholder="Loading..."></textarea><div class="note-edit-actions"><button class="btn btn-ghost btn-sm" data-action="cancel-edit-note">Cancel</button><button class="btn btn-primary btn-sm" data-action="save-edit-note" data-did="'+doc.id+'">Save</button></div></div>' : '';
+      return '<div class="doc-row'+enabledClass+'" data-docid="'+doc.id+'"><input type="checkbox" class="doc-checkbox" data-action="select-doc" data-did="'+doc.id+'"'+checked+'><div class="doc-icon '+doc.file_type+'">'+(doc.file_type==='note'?'note':doc.file_type)+'</div><div class="doc-info"><div class="doc-name">'+esc(doc.original_name)+'</div><div class="doc-meta-line"><span>'+fmtBytes(doc.file_size)+'</span>'+(doc.page_count?'<span>'+doc.page_count+' pages</span>':'')+'<span>'+fmtDate(doc.uploaded_at)+'</span></div>'+err+editArea+'</div>'+badge+'<div class="doc-row-actions">'+retryBtn+editBtn+'<label class="source-toggle" title="'+toggleTitle+'"><input type="checkbox" '+(enabled?'checked':'')+' data-action="toggle-doc" data-did="'+doc.id+'"><span class="toggle-slider"></span></label><button class="doc-delete-btn" data-action="delete-doc" data-did="'+doc.id+'">Delete</button></div></div>';
     }).join('');
 
     const total = state.documents.reduce((s,d)=>s+d.file_size,0);
@@ -390,6 +403,67 @@
       await loadDocuments();
     } catch(err) { toast(err.message, 'error'); }
     finally { btn.disabled = false; btn.textContent = 'Add URL'; }
+  }
+
+  // ── Text Notes ──
+  let editingNoteId = null;
+
+  function openNoteEditor() {
+    $('note-editor').classList.remove('hidden');
+    $('note-title-input').value = '';
+    $('note-content-input').value = '';
+    $('note-title-input').focus();
+  }
+  function closeNoteEditor() {
+    $('note-editor').classList.add('hidden');
+    $('note-title-input').value = '';
+    $('note-content-input').value = '';
+  }
+  async function saveNote() {
+    const title = $('note-title-input').value.trim();
+    const content = $('note-content-input').value.trim();
+    if (!content) { toast('Write something in the note', 'error'); return; }
+    const btn = $('note-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      await api.post('/documents/notes', { title, content });
+      toast('Note saved — processing', 'success');
+      closeNoteEditor();
+      await loadDocuments();
+    } catch(err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Save Note'; }
+  }
+
+  async function editNote(id) {
+    if (editingNoteId === id) return; // already editing
+    editingNoteId = id;
+    renderDocs(); // re-render to show the edit area
+    // Fetch content
+    try {
+      const note = await api.get('/documents/notes/' + id);
+      const ta = document.querySelector('.note-edit-area textarea[data-did="'+id+'"]');
+      if (ta) ta.value = note.content;
+    } catch(err) { toast(err.message, 'error'); editingNoteId = null; renderDocs(); }
+  }
+
+  function cancelEditNote() {
+    editingNoteId = null;
+    renderDocs();
+  }
+
+  async function saveEditNote(id) {
+    const ta = document.querySelector('.note-edit-area textarea[data-did="'+id+'"]');
+    if (!ta) return;
+    const content = ta.value.trim();
+    if (!content) { toast('Note cannot be empty', 'error'); return; }
+    const saveBtn = document.querySelector('.note-edit-actions [data-action="save-edit-note"][data-did="'+id+'"]');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving...'; }
+    try {
+      await api.put('/documents/notes/' + id, { content });
+      toast('Note updated — re-processing', 'success');
+      editingNoteId = null;
+      await loadDocuments();
+    } catch(err) { toast(err.message, 'error'); if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; } }
   }
 
   // Accumulated files for upload (supports multiple drag-drops and file picker additions)
@@ -643,6 +717,9 @@
     const action = btn.dataset.action;
     if (action === 'delete-doc') deleteDoc(btn.dataset.did);
     else if (action === 'retry') retryDoc(btn.dataset.did);
+    else if (action === 'edit-note') editNote(btn.dataset.did);
+    else if (action === 'cancel-edit-note') cancelEditNote();
+    else if (action === 'save-edit-note') saveEditNote(btn.dataset.did);
     else if (action === 'copy') copyMsg(btn.dataset.mid);
     else if (action === 'regen') regen();
     else if (action === 'expand-log') expandChatLog(btn.dataset.logcid, btn);
@@ -714,6 +791,9 @@
     $('batch-delete-btn')?.addEventListener('click', batchDelete);
     $('add-url-btn')?.addEventListener('click', addUrl);
     $('url-input')?.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } });
+    $('add-note-btn')?.addEventListener('click', openNoteEditor);
+    $('note-cancel-btn')?.addEventListener('click', closeNoteEditor);
+    $('note-save-btn')?.addEventListener('click', saveNote);
     $('upload-form')?.addEventListener('submit', uploadDoc);
     $('doc-search')?.addEventListener('input', function(){renderDocs(this.value.toLowerCase());});
     const dz=$('dropzone'),fi=$('file-input');
@@ -764,6 +844,12 @@
         document.querySelectorAll('[data-theme="'+choice+'"]').forEach(b => b.classList.add('active'));
       });
     });
+
+    // Text size controls
+    $('text-size-down')?.addEventListener('click', () => applyTextSize(textSizeLevel - 1));
+    $('text-size-up')?.addEventListener('click', () => applyTextSize(textSizeLevel + 1));
+    $('mobile-text-size-down')?.addEventListener('click', () => applyTextSize(textSizeLevel - 1));
+    $('mobile-text-size-up')?.addEventListener('click', () => applyTextSize(textSizeLevel + 1));
 
     // Boot
     api.get('/auth/profile').then(p=>{state.user=p;initApp();}).catch(()=>{showAuth();checkSetup();});
