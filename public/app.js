@@ -21,10 +21,11 @@
   const currentTheme = initTheme();
 
   // ── Text Size ──
-  // Range: 12px (-3) to 18px (+3), default 15px (0). Each step = 1px.
+  // Range: 14px (-1) to 17px (+2), default 15px (0). Each step = 1px.
+  // Capped to prevent UI element displacement at max size.
   let textSizeLevel = parseInt(localStorage.getItem('docuchat-textsize') || '0', 10);
   function applyTextSize(level) {
-    textSizeLevel = Math.max(-3, Math.min(3, level));
+    textSizeLevel = Math.max(-1, Math.min(2, level));
     document.documentElement.style.fontSize = (15 + textSizeLevel) + 'px';
     localStorage.setItem('docuchat-textsize', textSizeLevel);
   }
@@ -275,6 +276,50 @@
   function stopGen() { if(state.abortController){state.abortController.abort();state.abortController=null;} }
   async function regen() { if(!state.currentConversation||state.isGenerating) return; state.isGenerating=true; $('typing-indicator').classList.remove('hidden'); try { const r=await api.post('/chat/conversations/'+state.currentConversation.id+'/regenerate'); const i=state.messages.length-1; if(state.messages[i]?.role==='assistant') state.messages[i]={...r,citations:r.citations?(typeof r.citations==='string'?JSON.parse(r.citations):r.citations):[]}; renderMessages(); } catch(err){toast(err.message,'error');} finally{state.isGenerating=false;$('typing-indicator').classList.add('hidden');} }
   function copyMsg(id) { const m=state.messages.find(x=>x.id===id); if(m) navigator.clipboard.writeText(m.content).then(()=>toast('Copied','success')); }
+
+  // ── Speech Recognition (Dictation) ──
+  let speechRecognition = null;
+  let isRecording = false;
+  let micTranscript = '';
+  function initSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return; // Not supported — mic button stays hidden
+    $('mic-btn').style.display = '';
+    speechRecognition = new SR();
+    speechRecognition.continuous = true;
+    speechRecognition.interimResults = true;
+    speechRecognition.lang = navigator.language || 'en-US';
+    speechRecognition.onresult = function(e) {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) { micTranscript += e.results[i][0].transcript + ' '; }
+        else { interim += e.results[i][0].transcript; }
+      }
+      const inp = $('chat-input');
+      inp.value = micTranscript + interim;
+      inp.style.height = 'auto'; inp.style.height = Math.min(inp.scrollHeight, 100) + 'px';
+    };
+    speechRecognition.onerror = function(e) {
+      if (e.error !== 'no-speech' && e.error !== 'aborted') toast('Mic error: ' + e.error, 'error');
+      stopRecording();
+    };
+    speechRecognition.onend = function() { stopRecording(); };
+  }
+  function toggleRecording() {
+    if (isRecording) { stopRecording(); } else { startRecording(); }
+  }
+  function startRecording() {
+    if (!speechRecognition) return;
+    isRecording = true;
+    $('mic-btn').classList.add('recording');
+    micTranscript = $('chat-input').value; // preserve existing text
+    try { speechRecognition.start(); } catch(e) { /* already started */ }
+  }
+  function stopRecording() {
+    isRecording = false;
+    $('mic-btn').classList.remove('recording');
+    try { speechRecognition.stop(); } catch(e) { /* ignore */ }
+  }
 
   // ── Documents ──
   let docPoll = null;
@@ -775,6 +820,8 @@
     $('chat-input').addEventListener('keydown', e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});
     $('chat-input').addEventListener('input', function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px';});
     $('stop-btn').addEventListener('click', stopGen);
+    $('mic-btn')?.addEventListener('click', toggleRecording);
+    initSpeechRecognition();
     $('pin-chat-btn').addEventListener('click', pinChat);
     $('delete-chat-btn').addEventListener('click', deleteChat);
     $('chat-search').addEventListener('input', async function(){const s=this.value.trim();try{state.conversations=await api.get('/chat/conversations'+(s?'?search='+encodeURIComponent(s):''));renderConvos();}catch{}});

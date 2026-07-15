@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css?v=2.81">
+  <link rel="stylesheet" href="/styles.css?v=2.93">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 </head>
 <body>
@@ -161,6 +161,9 @@
               </div>
               <form id="chat-form" class="chat-form">
                 <textarea id="chat-input" placeholder="Type your message..." rows="1"></textarea>
+                <button type="button" id="mic-btn" class="btn-icon mic-btn" title="Dictate" style="display:none;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                </button>
                 <button type="button" id="stop-btn" class="btn-icon hidden" title="Stop">
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="8" height="8" fill="currentColor"/></svg>
                 </button>
@@ -632,21 +635,6 @@
       <div class="mobile-drawer-panel">
         <div class="mobile-drawer-header">
           <span class="mobile-drawer-title">Menu</span>
-          <div class="mobile-text-size" id="mobile-text-size">
-            <button class="text-size-btn" id="mobile-text-size-down" title="Smaller">A-</button>
-            <button class="text-size-btn" id="mobile-text-size-up" title="Larger">A+</button>
-          </div>
-          <div class="mobile-theme-toggle" id="mobile-theme-toggle">
-            <button class="theme-option" data-theme="auto" title="Auto">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-            </button>
-            <button class="theme-option" data-theme="light" title="Light">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-            </button>
-            <button class="theme-option" data-theme="dark" title="Dark">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-            </button>
-          </div>
           <button id="mobile-drawer-close" class="btn-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -669,9 +657,28 @@
           <div id="mobile-chat-list" class="mobile-chat-list"></div>
         </div>
         <div class="mobile-drawer-footer">
-          <span id="mobile-username" class="username"></span>
-          <button id="mobile-change-pw" class="btn btn-ghost btn-sm">Password</button>
-          <button id="mobile-logout" class="btn btn-ghost btn-sm">Logout</button>
+          <div class="mobile-drawer-controls">
+            <div class="mobile-text-size" id="mobile-text-size">
+              <button class="text-size-btn" id="mobile-text-size-down" title="Smaller">A-</button>
+              <button class="text-size-btn" id="mobile-text-size-up" title="Larger">A+</button>
+            </div>
+            <div class="mobile-theme-toggle" id="mobile-theme-toggle">
+              <button class="theme-option" data-theme="auto" title="Auto">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+              </button>
+              <button class="theme-option" data-theme="light" title="Light">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              </button>
+              <button class="theme-option" data-theme="dark" title="Dark">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+              </button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span id="mobile-username" class="username"></span>
+            <button id="mobile-change-pw" class="btn btn-ghost btn-sm">Password</button>
+            <button id="mobile-logout" class="btn btn-ghost btn-sm">Logout</button>
+          </div>
         </div>
       </div>
     </div>
@@ -732,7 +739,7 @@
     <div id="toast-container" class="toast-container"></div>
   </div>
 
-  <script src="/app.js?v=2.81"></script>
+  <script src="/app.js?v=2.93"></script>
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});

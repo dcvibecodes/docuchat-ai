@@ -1,4 +1,4 @@
-# DocuChat AI v2.9.0
+# DocuChat AI v2.9.1
 
 Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
 
@@ -59,9 +59,11 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Live UI feedback** — all actions (delete, save, clear, toggle) show immediate visual feedback without requiring page refresh
 - **Double-send prevention** — send button locks immediately on mobile/desktop to prevent duplicate messages
 - **Multi-file upload** — accumulates files across multiple drag-and-drops; shows combined count before uploading
-- **Text size controls** — A-/A+ buttons (3 steps each direction) with preference remembered; default centered for accessibility
+- **Text size controls** — A-/A+ buttons (decrease/increase, safe range 14–17px) with preference remembered
+- **Voice dictation** — microphone button for speech-to-text input (works on iPhone Safari, Chrome, Edge, macOS Safari)
 - **PWA support** — installable on iOS/Android/desktop; works from home screen with app icon
 - **iPhone safe area** — respects notch, home indicator, and status bar in standalone PWA mode
+- **Mobile-optimized UI** — proper proportions for touch (not just scaled-up desktop), pill-shaped chat input, drawer controls in footer
 - **Inline config guidance** — non-technical hints on every AI config field; comprehensive Help tab explaining providers, models, costs
 
 ## Tech Stack
