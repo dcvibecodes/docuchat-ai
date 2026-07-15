@@ -1,6 +1,6 @@
 {
   "name": "document-chatbot",
-  "version": "2.8.1",
+  "version": "2.9.0",
   "description": "DocuChat AI - Chat with your uploaded documents using RAG",
   "main": "src/index.js",
   "scripts": {

@@ -21,11 +21,11 @@
   const currentTheme = initTheme();
 
   // ── Text Size ──
-  const TEXT_SIZE_STEPS = [0, 1, 2, 3]; // 0=default, each step adds 1px to base
+  // Range: 12px (-3) to 18px (+3), default 15px (0). Each step = 1px.
   let textSizeLevel = parseInt(localStorage.getItem('docuchat-textsize') || '0', 10);
   function applyTextSize(level) {
-    textSizeLevel = Math.max(0, Math.min(3, level));
-    document.documentElement.style.fontSize = (14 + textSizeLevel) + 'px';
+    textSizeLevel = Math.max(-3, Math.min(3, level));
+    document.documentElement.style.fontSize = (15 + textSizeLevel) + 'px';
     localStorage.setItem('docuchat-textsize', textSizeLevel);
   }
   applyTextSize(textSizeLevel);

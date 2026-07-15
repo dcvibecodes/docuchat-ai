@@ -51,7 +51,7 @@ body {
 .setup-note { font-size: 0.7rem; color: var(--text-faint); margin-bottom: 12px; }
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; font-size: 0.68rem; font-weight: 500; color: var(--text-faint); margin-bottom: 4px; }
-.form-group input, .form-group textarea, .form-group select { width: 100%; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 0.8rem; font-family: inherit; transition: border-color 0.15s; -webkit-appearance: none; appearance: none; }
+.form-group input, .form-group textarea, .form-group select { width: 100%; background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: max(0.8rem, 16px); font-family: inherit; transition: border-color 0.15s; -webkit-appearance: none; appearance: none; }
 .form-group select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
 .form-group input:focus, .form-group textarea:focus, .form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
 .form-group input::placeholder, .form-group textarea::placeholder { color: var(--text-faint); }
@@ -171,7 +171,7 @@ body {
 .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes typing { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-3px)} }
 .chat-form { display: flex; gap: 8px; align-items: stretch; }
-.chat-form textarea { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.8rem; font-family: inherit; resize: none; max-height: 100px; background: var(--bg); color: var(--text); transition: border-color 0.15s; }
+.chat-form textarea { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: max(0.8rem, 16px); font-family: inherit; resize: none; max-height: 100px; background: var(--bg); color: var(--text); transition: border-color 0.15s; }
 .chat-form textarea:focus { outline: none; border-color: var(--accent); }
 .chat-form textarea::placeholder { color: var(--text-faint); }
 .chat-form .btn-icon, .chat-form .btn-send { height: auto; width: 36px; min-width: 36px; border-radius: 8px; align-self: stretch; }
@@ -190,8 +190,8 @@ body {
 /* Note editor */
 .note-editor { padding: 12px 14px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 8px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
 .note-editor.hidden { display: none; }
-.note-title-input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.76rem; font-family: inherit; background: var(--bg); color: var(--text); }
-.note-content-input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.76rem; font-family: 'Courier New', monospace; background: var(--bg); color: var(--text); resize: vertical; min-height: 100px; line-height: 1.5; }
+.note-title-input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: max(0.76rem, 16px); font-family: inherit; background: var(--bg); color: var(--text); }
+.note-content-input { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: max(0.76rem, 16px); font-family: 'Courier New', monospace; background: var(--bg); color: var(--text); resize: vertical; min-height: 100px; line-height: 1.5; }
 .note-title-input:focus, .note-content-input:focus { outline: none; border-color: var(--accent); }
 .note-editor-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
