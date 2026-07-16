@@ -250,8 +250,9 @@
     if (e) e.preventDefault();
     const inp = $('chat-input'); const msg = inp.value.trim();
     if (!msg || state.isGenerating) return;
-    // Stop mic if recording
+    // Stop mic if recording and clear transcript
     if (isRecording) stopRecording();
+    micTranscript = '';
     // Immediately lock to prevent double-send (especially on mobile)
     state.isGenerating = true;
     $('send-btn').disabled = true;

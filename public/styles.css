@@ -171,11 +171,11 @@ body {
 .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
 .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes typing { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-3px)} }
-.chat-form { display: flex; gap: 8px; align-items: stretch; }
+.chat-form { display: flex; gap: 8px; align-items: flex-end; }
 .chat-form textarea { flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; font-family: inherit; resize: none; max-height: 100px; background: var(--bg); color: var(--text); transition: border-color 0.15s; }
 .chat-form textarea:focus { outline: none; border-color: var(--accent); }
 .chat-form textarea::placeholder { color: var(--text-faint); }
-.chat-form .btn-icon, .chat-form .btn-send { height: auto; width: 36px; min-width: 36px; border-radius: 8px; align-self: stretch; }
+.chat-form .btn-icon, .chat-form .btn-send { height: 36px; width: 36px; min-width: 36px; border-radius: 8px; align-self: flex-end; flex-shrink: 0; }
 .mic-btn.recording { background: var(--danger-dim); color: var(--danger); border-color: var(--danger); animation: mic-pulse 1s infinite; }
 @keyframes mic-pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
 
@@ -441,7 +441,7 @@ body.is-techadmin .techadmin-locked::after { display: none; }
   .chat-input-area { padding: 10px 14px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   .chat-form { gap: 10px; }
   .chat-form textarea { font-size: 0.82rem; min-height: 40px; padding: 10px 14px; border-radius: 8px; }
-  .chat-form .btn-icon, .chat-form .btn-send { width: 40px; min-width: 40px; border-radius: 8px; }
+  .chat-form .btn-icon, .chat-form .btn-send { width: 40px; min-width: 40px; height: 40px; border-radius: 8px; }
   .message { max-width: 88%; }
   .message-body { padding: 10px 14px; font-size: 0.82rem; line-height: 1.6; border-radius: 14px; }
   .message-avatar { width: 28px; height: 28px; font-size: 0.64rem; }
