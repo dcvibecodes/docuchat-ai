@@ -94,6 +94,11 @@
       });
       return '<ul>' + items.join('') + '</ul>';
     });
+    // Blockquotes: lines starting with >
+    t = t.replace(/(?:^> .+(?:\n> .+|\n>)*(?:\n)?)+/gm, function(match) {
+      const content = match.replace(/^> ?/gm, '').trim();
+      return '<blockquote>' + content + '</blockquote>';
+    });
     // Clickable URLs (must come after code blocks to avoid linkifying code)
     t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     t = t.replace(/((?<!")(?<!')|^)(https?:\/\/[^\s<"']+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
@@ -245,6 +250,8 @@
     if (e) e.preventDefault();
     const inp = $('chat-input'); const msg = inp.value.trim();
     if (!msg || state.isGenerating) return;
+    // Stop mic if recording
+    if (isRecording) stopRecording();
     // Immediately lock to prevent double-send (especially on mobile)
     state.isGenerating = true;
     $('send-btn').disabled = true;

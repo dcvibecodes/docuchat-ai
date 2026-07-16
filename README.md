@@ -1,4 +1,4 @@
-# DocuChat AI v2.9.1
+# DocuChat AI v2.9.2
 
 Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Upload documents, add website URLs, ask questions, get answers grounded only in your sources with citations.
 
@@ -10,6 +10,7 @@ Self-hosted document AI chatbot using RAG (Retrieval-Augmented Generation). Uplo
 - **Inline citations** — document name, page number, and dates for chronological updates
 - **Clickable links** — URLs in bot responses are auto-linked (opens in new tab)
 - **Markdown tables** — bot can render tabular data with proper formatting
+- **Blockquotes** — quoted text (lines starting with >) renders as styled indented blocks
 - **Personalized greeting** — "Good morning/afternoon/evening, [Name]!" with "How can I help you today?"
 - **Suggested prompts** — up to 10 admin-configured prompts shown as cards on empty chat (drag-to-reorder, editable)
 - **Conversation management** — pin, delete, clear all, 20-chat auto-limit, no duplicate blank chats
