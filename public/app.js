@@ -257,6 +257,8 @@
     state.isGenerating = true;
     $('send-btn').disabled = true;
     inp.value=''; inp.style.height='auto';
+    // Delayed clear to catch any late speech recognition repopulation on iOS
+    setTimeout(() => { inp.value = ''; inp.style.height = 'auto'; }, 100);
     if (!state.currentConversation) await newChat();
     state.messages.push({id:'t'+Date.now(), role:'user', content:msg});
     renderMessages(true);
@@ -298,6 +300,7 @@
     speechRecognition.interimResults = true;
     speechRecognition.lang = navigator.language || 'en-US';
     speechRecognition.onresult = function(e) {
+      if (!isRecording) return; // Ignore late results after stop/send
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         if (e.results[i].isFinal) { micTranscript += e.results[i][0].transcript + ' '; }
@@ -324,7 +327,7 @@
     try { speechRecognition.start(); } catch(e) { /* already started */ }
   }
   function stopRecording() {
-    isRecording = false;
+    isRecording = false; // Must be set before stop() — prevents late onresult from repopulating input
     $('mic-btn').classList.remove('recording');
     try { speechRecognition.stop(); } catch(e) { /* ignore */ }
   }
