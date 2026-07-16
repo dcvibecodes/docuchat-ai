@@ -825,7 +825,12 @@
     $('mobile-change-pw')?.addEventListener('click', ()=>{ $('pw-modal').classList.remove('hidden'); closeDrawer(); });
     document.querySelectorAll('.mobile-nav-btn').forEach(b=>b.addEventListener('click',()=>{ switchView(b.dataset.mview); closeDrawer(); document.querySelectorAll('.mobile-nav-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); }));
     $('chat-form').addEventListener('submit', sendMsg);
-    $('chat-input').addEventListener('keydown', e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}});
+    $('chat-input').addEventListener('keydown', e=>{
+      // Desktop: Enter sends, Shift+Enter adds line break
+      // Mobile: Enter always adds line break (user taps Send button)
+      const isMobile = window.matchMedia('(max-width: 768px)').matches || 'ontouchstart' in window;
+      if(e.key==='Enter'&&!e.shiftKey&&!isMobile){e.preventDefault();sendMsg();}
+    });
     $('chat-input').addEventListener('input', function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,100)+'px';});
     $('stop-btn').addEventListener('click', stopGen);
     $('mic-btn')?.addEventListener('click', toggleRecording);
